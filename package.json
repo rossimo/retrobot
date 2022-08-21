@@ -1,0 +1,25 @@
+{
+  "name": "libretro-webassembly-simple",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Ross Squires <ross.squires@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "start": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/ffprobe": "^1.4.1",
+    "@types/fluent-ffmpeg": "^2.1.20",
+    "@types/node": "^18.7.8",
+    "@types/sharp": "^0.30.5",
+    "@types/shelljs": "^0.8.11",
+    "@types/tmp": "^0.2.3",
+    "fluent-ffmpeg": "^2.1.2",
+    "sharp": "^0.30.7",
+    "shelljs": "^0.8.5",
+    "tmp": "^0.2.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.7.4"
+  }
+}

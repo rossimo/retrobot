@@ -1,0 +1,99 @@
+#include <emscripten/bind.h>
+#include <iostream>
+
+extern "C"
+{
+#include "libretro.h"
+}
+
+void simple_retro_get_system_info(emscripten::val obj)
+{
+    retro_system_info info;
+    retro_get_system_info(&info);
+
+    obj.set("library_name", info.library_name);
+    obj.set("library_version", info.library_version);
+    obj.set("valid_extensions", info.valid_extensions);
+    obj.set("need_fullpath", info.need_fullpath);
+    obj.set("block_extract", info.block_extract);
+}
+
+emscripten::val retro_environment_callback = emscripten::val::undefined();
+
+bool inner_retro_environment(unsigned cmd, void *data)
+{
+    if (retro_environment_callback != emscripten::val::undefined())
+    {
+        return retro_environment_callback(cmd, (unsigned int)data).as<unsigned int>();
+    }
+
+    return false;
+}
+
+void simple_retro_set_environment(emscripten::val val)
+{
+    retro_environment_callback = val;
+
+    retro_set_environment(&inner_retro_environment);
+}
+
+emscripten::val retro_video_refresh_callback = emscripten::val::undefined();
+
+void inner_retro_set_video_refresh(const void *data, unsigned width, unsigned height, size_t pitch)
+{
+    if (retro_video_refresh_callback != emscripten::val::undefined())
+    {
+        retro_video_refresh_callback((unsigned int)data, (unsigned int)width, (unsigned int)height, (unsigned int)pitch);
+    }
+}
+
+void simple_retro_set_video_refresh(emscripten::val val)
+{
+    retro_video_refresh_callback = val;
+
+    retro_set_video_refresh(&inner_retro_set_video_refresh);
+}
+
+void inner_retro_set_input_poll()
+{
+}
+
+int16_t inner_retro_set_input_state(unsigned port, unsigned device, unsigned index, unsigned id)
+{
+    return 0;
+}
+
+void inner_retro_set_audio_sample(int16_t left, int16_t right)
+{
+}
+
+size_t inner_retro_set_audio_sample_batch(const int16_t *data, size_t frames)
+{
+    return 0;
+}
+
+bool simple_retro_load_game(emscripten::val val)
+{
+    retro_set_input_poll(&inner_retro_set_input_poll);
+    retro_set_input_state(&inner_retro_set_input_state);
+    retro_set_audio_sample(&inner_retro_set_audio_sample);
+    retro_set_audio_sample_batch(&inner_retro_set_audio_sample_batch);
+    retro_init();
+
+    retro_game_info info;
+    info.data = (const char *)val["data"].as<unsigned int>();
+    info.size = val["size"].as<int>();
+
+    return retro_load_game(&info);
+}
+
+EMSCRIPTEN_BINDINGS(libretro_bindings)
+{
+    emscripten::function("retro_get_system_info", &simple_retro_get_system_info);
+    emscripten::function("retro_set_environment", &simple_retro_set_environment);
+    emscripten::function("retro_load_game", &simple_retro_load_game);
+    emscripten::function("retro_set_video_refresh", &simple_retro_set_video_refresh);
+    emscripten::function("retro_run", &retro_run);
+    emscripten::function("retro_init", &retro_init);
+    emscripten::function("retro_reset", &retro_reset);
+}
