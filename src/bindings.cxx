@@ -8,7 +8,7 @@ extern "C"
 
 void simple_retro_get_system_info(emscripten::val obj)
 {
-    retro_system_info info;
+    struct retro_system_info info = {0};
     retro_get_system_info(&info);
 
     obj.set("library_name", info.library_name);
@@ -16,6 +16,21 @@ void simple_retro_get_system_info(emscripten::val obj)
     obj.set("valid_extensions", info.valid_extensions);
     obj.set("need_fullpath", info.need_fullpath);
     obj.set("block_extract", info.block_extract);
+}
+
+void simple_retro_get_system_av_info(emscripten::val obj)
+{
+    struct retro_system_av_info info = {0};
+    retro_get_system_av_info(&info);
+
+    obj.set("geometry_base_width", info.geometry.base_width);
+    obj.set("geometry_base_height", info.geometry.base_height);
+    obj.set("geometry_max_width", info.geometry.max_width);
+    obj.set("geometry_max_height", info.geometry.max_height);
+    obj.set("geometry_aspect_ratio", info.geometry.aspect_ratio);
+
+    obj.set("timing_fps", info.timing.fps);
+    obj.set("timing_sample_rate", info.timing.sample_rate);
 }
 
 emscripten::val retro_environment_callback = emscripten::val::undefined();
@@ -90,6 +105,7 @@ bool simple_retro_load_game(emscripten::val val)
 EMSCRIPTEN_BINDINGS(libretro_bindings)
 {
     emscripten::function("retro_get_system_info", &simple_retro_get_system_info);
+    emscripten::function("retro_get_system_av_info", &simple_retro_get_system_av_info);
     emscripten::function("retro_set_environment", &simple_retro_set_environment);
     emscripten::function("retro_load_game", &simple_retro_load_game);
     emscripten::function("retro_set_video_refresh", &simple_retro_set_video_refresh);
