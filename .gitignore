@@ -3,3 +3,5 @@ node_modules
 *.png
 *.gb
 *.sfc
+*.smc
+frames.txt

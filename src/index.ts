@@ -1,21 +1,24 @@
 import * as fs from 'fs';
 import * as sharp from 'sharp';
 import * as tmp from 'tmp';
+import * as path from 'path';
 import * as shelljs from 'shelljs';
 import { performance } from 'perf_hooks';
+import { last } from 'lodash';
 import * as ffmpeg from 'fluent-ffmpeg';
 import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
+import { arraysEqual } from './utils';
 
-const Gambatte = require('../cores/snes9x2010_libretro');
+const Core = require('../cores/gambatte_libretro');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 
-const RECORDING_FRAMERATE = 60;
+const RECORDING_FRAMERATE = 15;
 
 const main = async () => {
-    const core = await Gambatte();
+    const core = await Core();
 
     core.retro_set_environment((cmd: number, data: any) => {
         if (cmd == 27) {
@@ -29,12 +32,12 @@ const main = async () => {
         return true;
     });
 
-    const buffer = fs.readFileSync('ffiii.sfc').buffer;
-    const romData = core.asm.malloc(buffer.byteLength);
-    var romHeap = new Uint8Array(core.HEAPU8.buffer, romData, buffer.byteLength);
-    romHeap.set(new Uint8Array(buffer));
+    const romBuffer = fs.readFileSync('pokemon.gb').buffer;
+    const romData = core.asm.malloc(romBuffer.byteLength);
+    const romHeap = new Uint8Array(core.HEAPU8.buffer, romData, romBuffer.byteLength);
+    romHeap.set(new Uint8Array(romBuffer));
 
-    if (!core.retro_load_game({ data: romData, size: buffer.byteLength })) {
+    if (!core.retro_load_game({ data: romData, size: romBuffer.byteLength })) {
         throw new Error('Failed to load');
     }
 
@@ -52,40 +55,83 @@ const main = async () => {
     shelljs.mkdir('-p', 'frames');
 
     const frameTasks: Promise<sharp.OutputInfo>[] = [];
+    const frames: {
+        file: string
+        frameNumber: number
+    }[] = [];
 
-    let frameCount = 1;
-    for (let i = 0; i < 60 * 30; i++) {
-        const frame = await new Promise<Uint8Array>((res) => {
+    let lastBuffer: Uint16Array;
+    let lastRecordedBuffer = new Uint16Array();
+
+    let framesSinceRecord = -1;
+
+    for (let i = 0; i < av_info.timing_fps * 30; i++) {
+        const frame = await new Promise<{ buffer: Uint16Array, width: number, height: number, pitch: number }>((res) => {
             core.retro_set_video_refresh((data: number, width: number, height: number, pitch: number) => {
-                const frame = new Uint16Array(core.HEAPU16.subarray(data / 2, (data + pitch * height) / 2));
+                lastBuffer = data
+                    ? new Uint16Array(core.HEAPU16.subarray(data / 2, (data + pitch * height) / 2))
+                    : lastBuffer;
 
-                const raw = new Uint8Array(width * height * 3);
-
-                for (let y = 0; y < height; y++) {
-                    for (let x = 0; x < width; x++) {
-                        const actualPixel = frame[(pitch * y) / 2 + x];
-
-                        const r = (actualPixel >> 8) & 0xF8;
-                        const g = (actualPixel >> 3) & 0xFC;
-                        const b = (actualPixel) << 3;
-
-                        const i = (x + width * y) * 3;
-                        raw[i] = r;
-                        raw[i + 1] = g;
-                        raw[i + 2] = b;
-                    }
-                }
-
-                res(raw);
+                res({
+                    buffer: lastBuffer,
+                    width,
+                    height,
+                    pitch
+                })
             });
 
             core.retro_run();
         });
 
-        if (i % (60 / RECORDING_FRAMERATE) == 0) {
-            frameTasks.push(sharp(frame, { raw: { width: av_info.geometry_base_width, height: av_info.geometry_base_height, channels: 3 } })
-                .toFile(`frames/frame-${frameCount++}.png`));
+        const { buffer, width, height, pitch } = frame;
+
+        framesSinceRecord++;
+
+        if (framesSinceRecord < (av_info.timing_fps / RECORDING_FRAMERATE) || arraysEqual(buffer, lastRecordedBuffer)) {
+            continue;
         }
+
+        framesSinceRecord = 0;
+
+        const raw = new Uint8Array(width * height * 3);
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const pixel = buffer[(pitch * y) / 2 + x];
+
+                const r = (pixel >> 8) & 0xF8;
+                const g = (pixel >> 3) & 0xFC;
+                const b = (pixel) << 3;
+
+                const i = (x + width * y) * 3;
+                raw[i] = r;
+                raw[i + 1] = g;
+                raw[i + 2] = b;
+            }
+        }
+
+        const file = path.resolve(`frames/frame-${i}.png`);
+
+        frameTasks.push(sharp(raw, {
+            raw: {
+                width,
+                height,
+                channels: 3
+            }
+        }).png({
+            quality: 100
+        }).resize({
+            width: av_info.geometry_base_width * 2,
+            height: av_info.geometry_base_height * 2,
+            kernel: sharp.kernel.nearest
+        }).toFile(file));
+
+        frames.push({
+            file,
+            frameNumber: i
+        });
+
+        lastRecordedBuffer = buffer;
     }
 
     await Promise.all(frameTasks);
@@ -95,12 +141,16 @@ const main = async () => {
     const { name: tmpDir } = tmp.dirSync();
 
     let framesTxt = '';
-    for (let i = 1; i < frameCount; i++) {
-        framesTxt += `file 'frames/frame-${i}.png'\n`;
-        framesTxt += `duration ${(60 / RECORDING_FRAMERATE) / 60}\n`;
-    }
+    for (let i = 0; i < frames.length; i++) {
+        const current = frames[i];
 
-    framesTxt += `file 'frames/frame-${frameCount - 1}.png'\n`;
+        framesTxt += `file '${current.file}'\n`;
+
+        const next = frames[i + 1];
+        if (next) {
+            framesTxt += `duration ${(next.frameNumber - current.frameNumber) / 60}\n`;
+        }
+    }
 
     fs.writeFileSync('frames.txt', framesTxt);
 
