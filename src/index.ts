@@ -10,12 +10,12 @@ import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
 import { arraysEqual } from './utils';
 
-const Core = require('../cores/gambatte_libretro');
+const Core = require('../cores/snes9x2010_libretro');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 
-const RECORDING_FRAMERATE = 15;
+const RECORDING_FRAMERATE = 20;
 
 const main = async () => {
     const core = await Core();
@@ -32,7 +32,7 @@ const main = async () => {
         return true;
     });
 
-    const romBuffer = fs.readFileSync('pokemon.gb').buffer;
+    const romBuffer = fs.readFileSync('ffiii.sfc').buffer;
     const romData = core.asm.malloc(romBuffer.byteLength);
     const romHeap = new Uint8Array(core.HEAPU8.buffer, romData, romBuffer.byteLength);
     romHeap.set(new Uint8Array(romBuffer));
@@ -48,6 +48,18 @@ const main = async () => {
     const av_info: any = {};
     core.retro_get_system_av_info(av_info);
     console.log(av_info);
+
+    if (fs.existsSync('state.sav')) {
+        const saveStateBuffer = fs.readFileSync('state.sav').buffer;
+        const saveStateData = core.asm.malloc(romBuffer.byteLength);
+        const saveStateHeap = new Uint8Array(core.HEAPU8.buffer, saveStateData, saveStateBuffer.byteLength);
+        saveStateHeap.set(new Uint8Array(saveStateBuffer));
+
+        if (!core.retro_unserialize(saveStateData, saveStateBuffer.byteLength)) {
+            throw new Error('Unable to load state');
+        }
+        core.asm.free(saveStateData);
+    }
 
     const start = performance.now();
 
@@ -85,9 +97,8 @@ const main = async () => {
 
         const { buffer, width, height, pitch } = frame;
 
-        framesSinceRecord++;
-
-        if (framesSinceRecord < (av_info.timing_fps / RECORDING_FRAMERATE) || arraysEqual(buffer, lastRecordedBuffer)) {
+        if (framesSinceRecord != -1 && (framesSinceRecord < (av_info.timing_fps / RECORDING_FRAMERATE) || arraysEqual(buffer, lastRecordedBuffer))) {
+            framesSinceRecord++;
             continue;
         }
 
@@ -118,12 +129,12 @@ const main = async () => {
                 height,
                 channels: 3
             }
-        }).png({
-            quality: 100
         }).resize({
             width: av_info.geometry_base_width * 2,
             height: av_info.geometry_base_height * 2,
             kernel: sharp.kernel.nearest
+        }).png({
+            quality: 100
         }).toFile(file));
 
         frames.push({
@@ -132,6 +143,21 @@ const main = async () => {
         });
 
         lastRecordedBuffer = buffer;
+    }
+
+    {
+        const saveStateSize = core.retro_serialize_size();
+        console.log({ saveStateSize });
+
+        const saveStateRam = core.asm.malloc(saveStateSize);
+        if (!core.retro_serialize(saveStateRam, saveStateSize)) {
+            throw new Error('Unable to save state');
+        }
+
+        const saveStateHeap = new Uint8Array(core.HEAPU8.buffer, saveStateRam, saveStateSize);
+        fs.writeFileSync("state.sav", saveStateHeap);
+
+        core.asm.free(saveStateRam);
     }
 
     await Promise.all(frameTasks);

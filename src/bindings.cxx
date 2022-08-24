@@ -33,6 +33,22 @@ void simple_retro_get_system_av_info(emscripten::val obj)
     obj.set("timing_sample_rate", info.timing.sample_rate);
 }
 
+bool simple_retro_serialize(emscripten::val dataVal, emscripten::val sizeVal)
+{
+    void *data = (void *)dataVal.as<unsigned int>();
+    size_t size = sizeVal.as<unsigned int>();
+
+    return retro_serialize(data, size);
+}
+
+bool simple_retro_unserialize(emscripten::val dataVal, emscripten::val sizeVal)
+{
+    void *data = (void *)dataVal.as<unsigned int>();
+    size_t size = sizeVal.as<unsigned int>();
+
+    return retro_unserialize(data, size);
+}
+
 emscripten::val retro_environment_callback = emscripten::val::undefined();
 
 bool inner_retro_environment(unsigned cmd, void *data)
@@ -112,4 +128,7 @@ EMSCRIPTEN_BINDINGS(libretro_bindings)
     emscripten::function("retro_run", &retro_run);
     emscripten::function("retro_init", &retro_init);
     emscripten::function("retro_reset", &retro_reset);
+    emscripten::function("retro_serialize_size", &retro_serialize_size);
+    emscripten::function("retro_serialize", &simple_retro_serialize);
+    emscripten::function("retro_unserialize", &simple_retro_unserialize);
 }
