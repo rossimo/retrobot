@@ -1,16 +1,15 @@
 import * as fs from 'fs';
-import * as sharp from 'sharp';
 import * as tmp from 'tmp';
 import * as path from 'path';
+import * as sharp from 'sharp';
 import * as shelljs from 'shelljs';
 import { performance } from 'perf_hooks';
-import { last } from 'lodash';
 import * as ffmpeg from 'fluent-ffmpeg';
 import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
-import { arraysEqual } from './utils';
 
-const Core = require('../cores/snes9x2010_libretro');
+import { arraysEqual } from './utils';
+import { executeFrame, loadRom as loadGame, loadState, rgb565toRaw, saveState } from './util';
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
@@ -18,6 +17,8 @@ ffmpeg.setFfprobePath(ffprobePath);
 const RECORDING_FRAMERATE = 20;
 
 const main = async () => {
+    const Core = require('../cores/snes9x2010_libretro');
+
     const core = await Core();
 
     core.retro_set_environment((cmd: number, data: any) => {
@@ -32,33 +33,19 @@ const main = async () => {
         return true;
     });
 
-    const romBuffer = fs.readFileSync('ffiii.sfc').buffer;
-    const romData = core.asm.malloc(romBuffer.byteLength);
-    const romHeap = new Uint8Array(core.HEAPU8.buffer, romData, romBuffer.byteLength);
-    romHeap.set(new Uint8Array(romBuffer));
-
-    if (!core.retro_load_game({ data: romData, size: romBuffer.byteLength })) {
-        throw new Error('Failed to load');
-    }
+    const game = fs.readFileSync('ffiii.sfc').buffer;
+    loadGame(core, game);
 
     const system_info = {};
-    core.retro_get_system_info(system_info);
-    console.log(system_info);
-
     const av_info: any = {};
+
+    core.retro_get_system_info(system_info);
     core.retro_get_system_av_info(av_info);
-    console.log(av_info);
+
+    console.log({ system_info, av_info });
 
     if (fs.existsSync('state.sav')) {
-        const saveStateBuffer = fs.readFileSync('state.sav').buffer;
-        const saveStateData = core.asm.malloc(romBuffer.byteLength);
-        const saveStateHeap = new Uint8Array(core.HEAPU8.buffer, saveStateData, saveStateBuffer.byteLength);
-        saveStateHeap.set(new Uint8Array(saveStateBuffer));
-
-        if (!core.retro_unserialize(saveStateData, saveStateBuffer.byteLength)) {
-            throw new Error('Unable to load state');
-        }
-        core.asm.free(saveStateData);
+        loadState(core, fs.readFileSync('state.sav').buffer);
     }
 
     const start = performance.now();
@@ -67,35 +54,19 @@ const main = async () => {
     shelljs.mkdir('-p', 'frames');
 
     const frameTasks: Promise<sharp.OutputInfo>[] = [];
-    const frames: {
-        file: string
-        frameNumber: number
-    }[] = [];
+    const frames: { file: string, frameNumber: number }[] = [];
 
     let lastBuffer: Uint16Array;
     let lastRecordedBuffer = new Uint16Array();
-
     let framesSinceRecord = -1;
 
     for (let i = 0; i < av_info.timing_fps * 30; i++) {
-        const frame = await new Promise<{ buffer: Uint16Array, width: number, height: number, pitch: number }>((res) => {
-            core.retro_set_video_refresh((data: number, width: number, height: number, pitch: number) => {
-                lastBuffer = data
-                    ? new Uint16Array(core.HEAPU16.subarray(data / 2, (data + pitch * height) / 2))
-                    : lastBuffer;
+        const frame = await executeFrame(core);
 
-                res({
-                    buffer: lastBuffer,
-                    width,
-                    height,
-                    pitch
-                })
-            });
+        frame.buffer = frame.buffer ? frame.buffer : lastBuffer;
+        lastBuffer = frame.buffer;
 
-            core.retro_run();
-        });
-
-        const { buffer, width, height, pitch } = frame;
+        const { buffer, width, height } = frame;
 
         if (framesSinceRecord != -1 && (framesSinceRecord < (av_info.timing_fps / RECORDING_FRAMERATE) || arraysEqual(buffer, lastRecordedBuffer))) {
             framesSinceRecord++;
@@ -104,22 +75,7 @@ const main = async () => {
 
         framesSinceRecord = 0;
 
-        const raw = new Uint8Array(width * height * 3);
-
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const pixel = buffer[(pitch * y) / 2 + x];
-
-                const r = (pixel >> 8) & 0xF8;
-                const g = (pixel >> 3) & 0xFC;
-                const b = (pixel) << 3;
-
-                const i = (x + width * y) * 3;
-                raw[i] = r;
-                raw[i + 1] = g;
-                raw[i + 2] = b;
-            }
-        }
+        const raw = rgb565toRaw(frame);
 
         const file = path.resolve(`frames/frame-${i}.png`);
 
@@ -134,7 +90,7 @@ const main = async () => {
             height: av_info.geometry_base_height * 2,
             kernel: sharp.kernel.nearest
         }).png({
-            quality: 100
+            quality: 10
         }).toFile(file));
 
         frames.push({
@@ -145,26 +101,11 @@ const main = async () => {
         lastRecordedBuffer = buffer;
     }
 
-    {
-        const saveStateSize = core.retro_serialize_size();
-        console.log({ saveStateSize });
-
-        const saveStateRam = core.asm.malloc(saveStateSize);
-        if (!core.retro_serialize(saveStateRam, saveStateSize)) {
-            throw new Error('Unable to save state');
-        }
-
-        const saveStateHeap = new Uint8Array(core.HEAPU8.buffer, saveStateRam, saveStateSize);
-        fs.writeFileSync("state.sav", saveStateHeap);
-
-        core.asm.free(saveStateRam);
-    }
-
     await Promise.all(frameTasks);
 
-    shelljs.mkdir('-p', 'output');
+    fs.writeFileSync('state.sav', saveState(core));
 
-    const { name: tmpDir } = tmp.dirSync();
+    shelljs.mkdir('-p', 'output');
 
     let framesTxt = '';
     for (let i = 0; i < frames.length; i++) {
@@ -194,8 +135,6 @@ const main = async () => {
             })
             .on('end', res)
             .run());
-
-    shelljs.rm('-rf', tmpDir);
 
     const end = performance.now();
 
