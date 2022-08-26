@@ -17,6 +17,8 @@
     "@types/sharp": "^0.30.5",
     "@types/shelljs": "^0.8.11",
     "@types/tmp": "^0.2.3",
+    "discord.js": "^14.3.0",
+    "dotenv": "^16.0.1",
     "fluent-ffmpeg": "^2.1.2",
     "hash-wasm": "^4.9.0",
     "lodash": "^4.17.21",

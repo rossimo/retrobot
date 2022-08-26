@@ -1,14 +1,17 @@
+import 'dotenv/config';
 import * as fs from 'fs';
 import * as tmp from 'tmp';
 import { md5 } from 'hash-wasm';
-import { values, first, size, last } from 'lodash';
+import { values, first, size, last, toLower, range } from 'lodash';
 import * as shelljs from 'shelljs';
 import { performance } from 'perf_hooks';
 import * as ffmpeg from 'fluent-ffmpeg';
 import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, GatewayIntentBits, Interaction, TextChannel, Message, ButtonInteraction, GuildMember } from 'discord.js';
 
 import { executeFrame, InputState, loadRom as loadGame, loadState, Recording, saveState } from './util';
+import path = require('path');
 
 tmp.setGracefulCleanup();
 
@@ -20,18 +23,44 @@ const RECORDING_FRAMERATE = 20;
 const INPUTS: InputState[] = [
     { A: true },
     { B: true },
-    { START: true },
-    { SELECT: true },
+    // { START: true },
+    // { SELECT: true },
     { UP: true },
     { DOWN: true },
     { LEFT: true },
     { RIGHT: true }
 ];
 
-const main = async () => {
-    const Core = require('../cores/gambatte_libretro');
+const parseInput = (input: string) => {
+    switch (toLower(input)) {
+        case 'a':
+            return { A: true };
+        case 'b':
+            return { B: true };
+        case 'up':
+            return { UP: true };
+        case 'down':
+            return { DOWN: true };
+        case 'left':
+            return { LEFT: true };
+        case 'right':
+            return { RIGHT: true };
+        case 'select':
+            return { SELECT: true };
+        case 'start':
+            return { START: true };
+    }
+}
 
-    let core = await Core();
+const main = async () => {
+    const args = process.argv.slice(2);
+
+    let playerInputs = args.map(arg => parseInput(arg));;
+    let player: GuildMember;
+
+    const Core = require('../cores/snes9x2010_libretro');
+
+    const core = await Core();
 
     const env = (core) => (cmd: number, data: any) => {
         if (cmd == 27) {
@@ -47,7 +76,7 @@ const main = async () => {
 
     core.retro_set_environment(env(core));
 
-    const game = fs.readFileSync('pokemon.gb').buffer;
+    const game = fs.readFileSync('chronotrigger.smc').buffer;
     loadGame(core, game);
 
     const system_info = {};
@@ -64,103 +93,249 @@ const main = async () => {
 
     const start = performance.now();
 
-    const recording: Recording = {
-        tmpDir: tmp.dirSync().name,
-        maxFramerate: av_info.timing_fps / RECORDING_FRAMERATE,
-        executedFrameCount: -1,
-        frames: [],
-        lastBuffer: new Uint16Array(),
-        lastRecordedBuffer: new Uint16Array(),
-        framesSinceRecord: -1,
-        width: av_info.geometry_base_width * 2,
-        height: av_info.geometry_base_height * 2,
-        quality: 100
-    };
+    const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-    for (let j = 0; j < 1; j++) {
-        await executeFrame(core, { A: true }, recording, 4);
+    await client.login(process.env.DISCORD_TOKEN);
+    const channel = await client.channels.fetch(process.env.DISCORD_CHANNEL_ID) as TextChannel;
+    console.log('online');
 
-        await executeFrame(core, {}, recording, 26);
-    }
+    while (true) {
+        const recording: Recording = {
+            tmpDir: tmp.dirSync().name,
+            maxFramerate: av_info.timing_fps / RECORDING_FRAMERATE,
+            executedFrameCount: -1,
+            frames: [],
+            lastBuffer: new Uint16Array(),
+            lastRecordedBuffer: new Uint16Array(),
+            framesSinceRecord: -1,
+            width: av_info.geometry_base_width * 2,
+            height: av_info.geometry_base_height * 2,
+            quality: 100
+        };
 
-    let state: Uint8Array;
+        const button = last(playerInputs);
+        for (const playerInput of playerInputs) {
+            await executeFrame(core, playerInput, recording, 20);
+            //await executeFrame(core, {}, recording, 16);
+        }
 
-    test: for (let i = 0; i < 30; i++) {
-        await executeFrame(core, {}, recording, 40);
+        test: for (let i = 0; i < 30; i++) {
+            await executeFrame(core, {}, recording, 40);
 
-        state = saveState(core);
+            const state = saveState(core);
 
-        const possibilities: { [hash: string]: InputState } = {};
+            const possibilities: { [hash: string]: InputState } = {};
 
-        await executeFrame(core, {}, null, 4);
-        const controlResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
+            await executeFrame(core, {}, null, 4);
+            const controlResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
 
-        for (const testInput of INPUTS) {
-            loadState(core, state);
-
-            await executeFrame(core, testInput, null, 4)
-            const testResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
-
-            if (controlResult != testResult) {
-                possibilities[testResult] = testInput;
-            }
-
-            if (size(possibilities) > 1) {
+            for (const testInput of INPUTS) {
                 loadState(core, state);
-                break test;
+
+                await executeFrame(core, testInput, null, 4)
+                const testResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
+
+                if (controlResult != testResult) {
+                    possibilities[testResult] = testInput;
+                }
+
+                if (size(possibilities) > 1) {
+                    loadState(core, state);
+                    break test;
+                }
+            }
+
+            const autoplay = size(possibilities) == 1
+                ? first(values(possibilities))
+                : {};
+
+            loadState(core, state);
+            await executeFrame(core, autoplay, recording, 4);
+            await executeFrame(core, {}, recording, 16);
+        }
+
+        await executeFrame(core, {}, recording, 30);
+
+        const frames = await Promise.all(recording.frames);
+
+        fs.writeFileSync('state.sav', saveState(core));
+
+        shelljs.mkdir('-p', 'output');
+
+        let framesTxt = '';
+        for (let i = 0; i < frames.length; i++) {
+            const current = frames[i];
+
+            framesTxt += `file '${current.file}'\n`;
+
+            const next = frames[i + 1];
+            if (next) {
+                framesTxt += `duration ${(next.frameNumber - current.frameNumber) / 60}\n`;
             }
         }
 
-        const autoplay = size(possibilities) == 1
-            ? first(values(possibilities))
-            : {};
+        framesTxt += `duration 5\n`;
+        framesTxt += `file '${last(frames).file}'\n`;
 
-        loadState(core, state);
-        await executeFrame(core, autoplay, recording, 4);
-        await executeFrame(core, {}, recording, 16);
-    }
+        const { name: framesList } = tmp.fileSync();
+        fs.writeFileSync(framesList, framesTxt);
 
-    const frames = await Promise.all(recording.frames);
+        await new Promise<void>((res, rej) =>
+            ffmpeg()
+                .input(framesList)
+                .addInputOption('-safe', '0')
+                .inputFormat('concat')
+                .addOption('-filter_complex', `split=2 [a][b]; [a] palettegen=reserve_transparent=off [pal]; [b] fifo [b]; [b] [pal] paletteuse`)
+                .output('outputfile.gif')
+                .on('error', (err, stdout, stderr) => {
+                    console.log(stdout)
+                    console.error(stderr);
+                    rej(err)
+                })
+                .on('end', res)
+                .run());
 
-    fs.writeFileSync('state.sav', saveState(core));
+        shelljs.rm('-rf', framesList);
+        shelljs.rm('-rf', recording.tmpDir);
 
-    shelljs.mkdir('-p', 'output');
+        const end = performance.now();
 
-    let framesTxt = '';
-    for (let i = 0; i < frames.length; i++) {
-        const current = frames[i];
+        console.log(end - start);
 
-        framesTxt += `file '${current.file}'\n`;
+        console.log(`Sending...`);
 
-        const next = frames[i + 1];
-        if (next) {
-            framesTxt += `duration ${(next.frameNumber - current.frameNumber) / 60}\n`;
+        const message = await channel.send({
+            content: player && button ? `${player.nickname || player.displayName} pressed ${joyToWord(button)}...` : undefined,
+            files: [{
+                attachment: path.resolve('outputfile.gif'),
+            }],
+            components: buttons(false),
+        });
+
+        console.log(`Waiting...`);
+        let multiplier = 1;
+        while (true) {
+            const interaction = await new Promise<Interaction<CacheType>>((res, rej) => {
+                client.once('interactionCreate', res);
+            });
+
+            if (interaction.isButton()) {
+                player = client.guilds.cache.get(process.env.DISCORD_GUILD_ID).members.cache.get(interaction.user.id);
+
+                let update = new Promise(res => res({}));
+
+                if (isNumeric(interaction.customId)) {
+                    // nothing
+                } else {
+                    update = update.then(() => message.edit({ components: buttons(true, interaction.customId) }));
+                }
+
+                update = update.then(() => interaction.update({}));
+
+                update.catch(err => console.warn(err));
+
+                if (isNumeric(interaction.customId)) {
+                    multiplier = parseInt(interaction.customId);
+                } else {
+                    playerInputs = range(0, multiplier).map(() => parseInput(interaction.customId));
+                    break;
+                }
+            }
         }
     }
+}
 
-    framesTxt += `duration 5\n`;
-    framesTxt += `file '${last(frames).file}'\n`;
+const isNumeric = (value) => {
+    return /^\d+$/.test(value);
+};
 
-    fs.writeFileSync('frames.txt', framesTxt);
+const buttons = (disabled: boolean = false, highlight?: string) => {
+    const a = new ButtonBuilder()
+        .setCustomId('a')
+        .setEmoji('🇦')
+        .setDisabled(disabled)
+        .setStyle(highlight == 'a' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
-    await new Promise<void>((res, rej) =>
-        ffmpeg()
-            .input('frames.txt')
-            .addInputOption('-safe', '0')
-            .inputFormat('concat')
-            .addOption('-filter_complex', `split=2 [a][b]; [a] palettegen=reserve_transparent=off [pal]; [b] fifo [b]; [b] [pal] paletteuse`)
-            .output('outputfile.gif')
-            .on('error', (err, stdout, stderr) => {
-                console.log(stdout)
-                console.error(stderr);
-                rej(err)
-            })
-            .on('end', res)
-            .run());
+    const b = new ButtonBuilder()
+        .setCustomId('b')
+        .setEmoji('🇧')
+        .setDisabled(disabled)
+        .setStyle(highlight == 'b' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
-    const end = performance.now();
+    const up = new ButtonBuilder()
+        .setCustomId('up')
+        .setEmoji('⬆️')
+        .setDisabled(disabled)
+        .setStyle(highlight == 'up' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
-    console.log(end - start);
+    const down = new ButtonBuilder()
+        .setCustomId('down')
+        .setEmoji('⬇️')
+        .setDisabled(disabled)
+        .setStyle(highlight == 'down' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const left = new ButtonBuilder()
+        .setCustomId('left')
+        .setEmoji('⬅️')
+        .setDisabled(disabled)
+        .setStyle(highlight == 'left' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const right = new ButtonBuilder()
+        .setCustomId('Right')
+        .setEmoji('➡️')
+        .setDisabled(disabled)
+        .setStyle(highlight == 'right' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const select = new ButtonBuilder()
+        .setCustomId('select')
+        .setEmoji('⏺️')
+        .setDisabled(disabled)
+        .setStyle(highlight == 'select' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const start = new ButtonBuilder()
+        .setCustomId('start')
+        .setEmoji('▶️')
+        .setDisabled(disabled)
+        .setStyle(highlight == 'start' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const multiply5 = new ButtonBuilder()
+        .setCustomId('5')
+        .setEmoji('5️⃣')
+        .setDisabled(disabled)
+        .setStyle(highlight == '5' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const multiply10 = new ButtonBuilder()
+        .setCustomId('10')
+        .setEmoji('🔟')
+        .setDisabled(disabled)
+        .setStyle(highlight == '10' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    return [
+        new ActionRowBuilder()
+            .addComponents(
+                a, b
+            ),
+        new ActionRowBuilder()
+            .addComponents(
+                up, down, left, right
+            ),
+        new ActionRowBuilder()
+            .addComponents(
+                select, start, multiply5, multiply10
+            )
+    ] as any[];
+};
+
+
+const joyToWord = (input: InputState) => {
+    if (input.A) return 'A';
+    if (input.B) return 'B';
+    if (input.UP) return 'Up';
+    if (input.DOWN) return 'Down';
+    if (input.LEFT) return 'Left';
+    if (input.RIGHT) return 'Right';
+    if (input.START) return 'Start';
+    if (input.SELECT) return 'Select';
 }
 
 main().catch(err => {
