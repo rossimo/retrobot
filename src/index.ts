@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as tmp from 'tmp';
 import { md5 } from 'hash-wasm';
-import { values, first, size } from 'lodash';
+import { values, first, size, last } from 'lodash';
 import * as shelljs from 'shelljs';
 import { performance } from 'perf_hooks';
 import * as ffmpeg from 'fluent-ffmpeg';
@@ -137,6 +137,9 @@ const main = async () => {
             framesTxt += `duration ${(next.frameNumber - current.frameNumber) / 60}\n`;
         }
     }
+
+    framesTxt += `duration 5\n`;
+    framesTxt += `file '${last(frames).file}'\n`;
 
     fs.writeFileSync('frames.txt', framesTxt);
 
