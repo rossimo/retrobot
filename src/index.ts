@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as tmp from 'tmp';
-import * as path from 'path';
 import * as sharp from 'sharp';
 import * as shelljs from 'shelljs';
 import { performance } from 'perf_hooks';
@@ -8,20 +7,29 @@ import * as ffmpeg from 'fluent-ffmpeg';
 import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
 
+
+import { last } from 'lodash';
+import { executeFrame, InputState, loadRom as loadGame, loadState, Recording, rgb565toRaw, saveState } from './util';
 import { arraysEqual } from './utils';
-import { executeFrame, loadRom as loadGame, loadState, rgb565toRaw, saveState } from './util';
+
+tmp.setGracefulCleanup();
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 
 const RECORDING_FRAMERATE = 20;
 
+const INPUTS: InputState[] = [
+    { A: true },
+    { B: true },
+];
+
 const main = async () => {
-    const Core = require('../cores/snes9x2010_libretro');
+    const Core = require('../cores/gambatte_libretro');
 
-    const core = await Core();
+    let core = await Core();
 
-    core.retro_set_environment((cmd: number, data: any) => {
+    const env = (core) => (cmd: number, data: any) => {
         if (cmd == 27) {
             return false;
         }
@@ -31,9 +39,11 @@ const main = async () => {
         }
 
         return true;
-    });
+    }
 
-    const game = fs.readFileSync('ffiii.sfc').buffer;
+    core.retro_set_environment(env(core));
+
+    const game = fs.readFileSync('pokemon.gb').buffer;
     loadGame(core, game);
 
     const system_info = {};
@@ -50,58 +60,65 @@ const main = async () => {
 
     const start = performance.now();
 
-    shelljs.rm('-rf', 'frames');
-    shelljs.mkdir('-p', 'frames');
+    const recording: Recording = {
+        tmpDir: tmp.dirSync().name,
+        maxFramerate: av_info.timing_fps / RECORDING_FRAMERATE,
+        executedFrameCount: -1,
+        frames: [],
+        lastBuffer: new Uint16Array(),
+        lastRecordedBuffer: new Uint16Array(),
+        framesSinceRecord: -1,
+        width: av_info.geometry_base_width * 2,
+        height: av_info.geometry_base_height * 2,
+        quality: 100
+    };
 
-    const frameTasks: Promise<sharp.OutputInfo>[] = [];
-    const frames: { file: string, frameNumber: number }[] = [];
+    for (let j = 0; j < 1; j++) {
+        await executeFrame(core, { A: true }, recording, 8);
 
-    let lastBuffer: Uint16Array;
-    let lastRecordedBuffer = new Uint16Array();
-    let framesSinceRecord = -1;
-
-    for (let i = 0; i < av_info.timing_fps * 30; i++) {
-        const frame = await executeFrame(core);
-
-        frame.buffer = frame.buffer ? frame.buffer : lastBuffer;
-        lastBuffer = frame.buffer;
-
-        const { buffer, width, height } = frame;
-
-        if (framesSinceRecord != -1 && (framesSinceRecord < (av_info.timing_fps / RECORDING_FRAMERATE) || arraysEqual(buffer, lastRecordedBuffer))) {
-            framesSinceRecord++;
-            continue;
-        }
-
-        framesSinceRecord = 0;
-
-        const raw = rgb565toRaw(frame);
-
-        const file = path.resolve(`frames/frame-${i}.png`);
-
-        frameTasks.push(sharp(raw, {
-            raw: {
-                width,
-                height,
-                channels: 3
-            }
-        }).resize({
-            width: av_info.geometry_base_width * 2,
-            height: av_info.geometry_base_height * 2,
-            kernel: sharp.kernel.nearest
-        }).png({
-            quality: 10
-        }).toFile(file));
-
-        frames.push({
-            file,
-            frameNumber: i
-        });
-
-        lastRecordedBuffer = buffer;
+        await executeFrame(core, {}, recording, 8);
     }
 
-    await Promise.all(frameTasks);
+    await executeFrame(core, {}, recording, 60 * 30);
+    
+    /*
+    let state: Uint8Array;
+
+    test: for (let i = 0; i < 30; i++) {
+        await executeFrame(core, {}, recording, 52);
+
+        state = saveState(core);
+
+        const controlResult = await executeFrame(core, {}, null, 8);
+
+        for (const input of INPUTS) {
+            loadState(core, state);
+
+            const testResult = await executeFrame(core, input, null, 8);
+
+            if (!arraysEqual(controlResult.buffer, testResult.buffer)) {
+                await sharp(rgb565toRaw(controlResult), {
+                    raw: {
+                        width: controlResult.width,
+                        height: controlResult.height,
+                        channels: 3
+                    }
+                }).toFile('control.png');
+
+                await sharp(rgb565toRaw(testResult), {
+                    raw: {
+                        width: testResult.width,
+                        height: testResult.height,
+                        channels: 3
+                    }
+                }).toFile('test.png');
+                break test;
+            }
+        }
+    }
+    */
+
+    const frames = await Promise.all(recording.frames);
 
     fs.writeFileSync('state.sav', saveState(core));
 

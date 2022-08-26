@@ -5,6 +5,7 @@
         "string": "cpp",
         "string_view": "cpp",
         "initializer_list": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "thread": "cpp"
     }
 }

@@ -81,16 +81,26 @@ void inner_retro_set_video_refresh(const void *data, unsigned width, unsigned he
 void simple_retro_set_video_refresh(emscripten::val val)
 {
     retro_video_refresh_callback = val;
-
-    retro_set_video_refresh(&inner_retro_set_video_refresh);
 }
 
 void inner_retro_set_input_poll()
 {
 }
 
+emscripten::val retro_set_input_state_callback = emscripten::val::undefined();
+
+void simple_retro_set_input_state(emscripten::val val)
+{
+    retro_set_input_state_callback = val;
+}
+
 int16_t inner_retro_set_input_state(unsigned port, unsigned device, unsigned index, unsigned id)
 {
+    if (retro_set_input_state_callback != emscripten::val::undefined())
+    {
+        retro_set_input_state_callback((unsigned int)port, (unsigned int)device, (unsigned int)index, (unsigned int)id);
+    }
+
     return 0;
 }
 
@@ -105,6 +115,7 @@ size_t inner_retro_set_audio_sample_batch(const int16_t *data, size_t frames)
 
 bool simple_retro_load_game(emscripten::val val)
 {
+    retro_set_video_refresh(&inner_retro_set_video_refresh);
     retro_set_input_poll(&inner_retro_set_input_poll);
     retro_set_input_state(&inner_retro_set_input_state);
     retro_set_audio_sample(&inner_retro_set_audio_sample);
@@ -131,4 +142,6 @@ EMSCRIPTEN_BINDINGS(libretro_bindings)
     emscripten::function("retro_serialize_size", &retro_serialize_size);
     emscripten::function("retro_serialize", &simple_retro_serialize);
     emscripten::function("retro_unserialize", &simple_retro_unserialize);
+    emscripten::function("retro_set_input_state", &simple_retro_set_input_state);
+    emscripten::function("retro_unload_game", &retro_unload_game);
 }
