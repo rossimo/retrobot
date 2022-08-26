@@ -81,6 +81,8 @@ void inner_retro_set_video_refresh(const void *data, unsigned width, unsigned he
 void simple_retro_set_video_refresh(emscripten::val val)
 {
     retro_video_refresh_callback = val;
+
+    retro_set_video_refresh(&inner_retro_set_video_refresh);
 }
 
 void inner_retro_set_input_poll()
@@ -98,7 +100,7 @@ int16_t inner_retro_set_input_state(unsigned port, unsigned device, unsigned ind
 {
     if (retro_set_input_state_callback != emscripten::val::undefined())
     {
-        retro_set_input_state_callback((unsigned int)port, (unsigned int)device, (unsigned int)index, (unsigned int)id);
+        return retro_set_input_state_callback((unsigned int)port, (unsigned int)device, (unsigned int)index, (unsigned int)id).as<unsigned>();
     }
 
     return 0;

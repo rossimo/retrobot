@@ -8,7 +8,7 @@ export const loadRom = (core: any, data: ArrayBufferLike) => {
     heap.set(new Uint8Array(data));
 
     const result = core.retro_load_game({ data: pointer, size: data.byteLength });
-    core.asm.free(pointer);
+    //core.asm.free(pointer);
 
     if (!result) {
         throw new Error('Unable to load game');

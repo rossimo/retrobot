@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as tmp from 'tmp';
+import * as md5 from 'md5';
 import * as sharp from 'sharp';
+import { omit, values, first, size } from 'lodash';
 import * as shelljs from 'shelljs';
 import { performance } from 'perf_hooks';
 import * as ffmpeg from 'fluent-ffmpeg';
@@ -8,9 +10,7 @@ import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
 
 
-import { last } from 'lodash';
 import { executeFrame, InputState, loadRom as loadGame, loadState, Recording, rgb565toRaw, saveState } from './util';
-import { arraysEqual } from './utils';
 
 tmp.setGracefulCleanup();
 
@@ -22,6 +22,12 @@ const RECORDING_FRAMERATE = 20;
 const INPUTS: InputState[] = [
     { A: true },
     { B: true },
+    { START: true },
+    { SELECT: true },
+    { UP: true },
+    { DOWN: true },
+    { LEFT: true },
+    { RIGHT: true }
 ];
 
 const main = async () => {
@@ -74,49 +80,49 @@ const main = async () => {
     };
 
     for (let j = 0; j < 1; j++) {
-        await executeFrame(core, { A: true }, recording, 8);
+        await executeFrame(core, { A: true }, recording, 4);
 
-        await executeFrame(core, {}, recording, 8);
+        await executeFrame(core, {}, recording, 26);
     }
 
-    await executeFrame(core, {}, recording, 60 * 30);
-    
-    /*
     let state: Uint8Array;
 
-    test: for (let i = 0; i < 30; i++) {
-        await executeFrame(core, {}, recording, 52);
+    test: for (let i = 0; i < 60; i++) {
+        await executeFrame(core, {}, recording, 40);
 
         state = saveState(core);
 
-        const controlResult = await executeFrame(core, {}, null, 8);
+        const possibilities: { [hash: string]: InputState } = {};
 
-        for (const input of INPUTS) {
+        await executeFrame(core, {}, null, 4);
+        const controlResult = md5((await executeFrame(core, {}, null, 16)).buffer);
+
+        for (const testInput of INPUTS) {
             loadState(core, state);
 
-            const testResult = await executeFrame(core, input, null, 8);
+            await executeFrame(core, testInput, null, 4)
+            const testResult = md5((await executeFrame(core, {}, null, 16)).buffer);
 
-            if (!arraysEqual(controlResult.buffer, testResult.buffer)) {
-                await sharp(rgb565toRaw(controlResult), {
-                    raw: {
-                        width: controlResult.width,
-                        height: controlResult.height,
-                        channels: 3
-                    }
-                }).toFile('control.png');
+            if (controlResult != testResult) {
+                possibilities[testResult] = testInput;
+            }
 
-                await sharp(rgb565toRaw(testResult), {
-                    raw: {
-                        width: testResult.width,
-                        height: testResult.height,
-                        channels: 3
-                    }
-                }).toFile('test.png');
+            if (size(possibilities) > 1) {
+                loadState(core, state);
                 break test;
             }
         }
+
+        const autoplay = first(values(possibilities));
+
+        const input = size(possibilities) == 1
+            ? autoplay
+            : {};
+
+        loadState(core, state);
+        await executeFrame(core, input, recording, 4);
+        await executeFrame(core, {}, null, 16);
     }
-    */
 
     const frames = await Promise.all(recording.frames);
 
