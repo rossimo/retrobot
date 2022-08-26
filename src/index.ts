@@ -1,16 +1,14 @@
 import * as fs from 'fs';
 import * as tmp from 'tmp';
-import * as md5 from 'md5';
-import * as sharp from 'sharp';
-import { omit, values, first, size } from 'lodash';
+import { md5 } from 'hash-wasm';
+import { values, first, size } from 'lodash';
 import * as shelljs from 'shelljs';
 import { performance } from 'perf_hooks';
 import * as ffmpeg from 'fluent-ffmpeg';
 import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
 
-
-import { executeFrame, InputState, loadRom as loadGame, loadState, Recording, rgb565toRaw, saveState } from './util';
+import { executeFrame, InputState, loadRom as loadGame, loadState, Recording, saveState } from './util';
 
 tmp.setGracefulCleanup();
 
@@ -31,7 +29,7 @@ const INPUTS: InputState[] = [
 ];
 
 const main = async () => {
-    const Core = require('../cores/snes9x2010_libretro');
+    const Core = require('../cores/gambatte_libretro');
 
     let core = await Core();
 
@@ -49,7 +47,7 @@ const main = async () => {
 
     core.retro_set_environment(env(core));
 
-    const game = fs.readFileSync('ffiii.sfc').buffer;
+    const game = fs.readFileSync('pokemon.gb').buffer;
     loadGame(core, game);
 
     const system_info = {};
@@ -79,13 +77,12 @@ const main = async () => {
         quality: 100
     };
 
-    /*
     for (let j = 0; j < 1; j++) {
         await executeFrame(core, { A: true }, recording, 4);
 
         await executeFrame(core, {}, recording, 26);
     }
-    */
+
     let state: Uint8Array;
 
     test: for (let i = 0; i < 30; i++) {
@@ -96,13 +93,13 @@ const main = async () => {
         const possibilities: { [hash: string]: InputState } = {};
 
         await executeFrame(core, {}, null, 4);
-        const controlResult = md5((await executeFrame(core, {}, null, 16)).buffer);
+        const controlResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
 
         for (const testInput of INPUTS) {
             loadState(core, state);
 
             await executeFrame(core, testInput, null, 4)
-            const testResult = md5((await executeFrame(core, {}, null, 16)).buffer);
+            const testResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
 
             if (controlResult != testResult) {
                 possibilities[testResult] = testInput;
@@ -114,14 +111,12 @@ const main = async () => {
             }
         }
 
-        const autoplay = first(values(possibilities));
-
-        const input = size(possibilities) == 1
-            ? autoplay
+        const autoplay = size(possibilities) == 1
+            ? first(values(possibilities))
             : {};
 
         loadState(core, state);
-        await executeFrame(core, input, recording, 4);
+        await executeFrame(core, autoplay, recording, 4);
         await executeFrame(core, {}, recording, 16);
     }
 
