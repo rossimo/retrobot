@@ -2,7 +2,7 @@ import 'dotenv/config';
 import * as fs from 'fs';
 import * as tmp from 'tmp';
 import { md5 } from 'hash-wasm';
-import { values, first, size, last, toLower, range } from 'lodash';
+import { values, first, size, last, toLower, range, isEqual } from 'lodash';
 import * as shelljs from 'shelljs';
 import { performance } from 'perf_hooks';
 import * as ffmpeg from 'fluent-ffmpeg';
@@ -76,7 +76,7 @@ const main = async () => {
 
     core.retro_set_environment(env(core));
 
-    const game = fs.readFileSync('chronotrigger.smc').buffer;
+    const game = fs.readFileSync('ffiii.sfc').buffer;
     loadGame(core, game);
 
     const system_info = {};
@@ -114,9 +114,17 @@ const main = async () => {
         };
 
         const button = last(playerInputs);
-        for (const playerInput of playerInputs) {
-            await executeFrame(core, playerInput, recording, 20);
-            //await executeFrame(core, {}, recording, 16);
+        for (let i = 0; i < playerInputs.length; i++) {
+            const prev = playerInputs[i - 1];
+            const current = playerInputs[i];
+            const next = playerInputs[i + 1];
+
+            if (isDirection(current) && (isEqual(current, next) || isEqual(current, prev))) {
+                await executeFrame(core, current, recording, 20);
+            } else {
+                await executeFrame(core, current, recording, 4);
+                await executeFrame(core, {}, recording, 16);
+            }
         }
 
         test: for (let i = 0; i < 30; i++) {
@@ -154,7 +162,7 @@ const main = async () => {
             await executeFrame(core, {}, recording, 16);
         }
 
-        await executeFrame(core, {}, recording, 30);
+        await executeFrame(core, {}, recording, 40);
 
         const frames = await Promise.all(recording.frames);
 
@@ -180,13 +188,15 @@ const main = async () => {
         const { name: framesList } = tmp.fileSync();
         fs.writeFileSync(framesList, framesTxt);
 
+        let output = 'output.gif';
+
         await new Promise<void>((res, rej) =>
             ffmpeg()
                 .input(framesList)
                 .addInputOption('-safe', '0')
                 .inputFormat('concat')
                 .addOption('-filter_complex', `split=2 [a][b]; [a] palettegen=reserve_transparent=off [pal]; [b] fifo [b]; [b] [pal] paletteuse`)
-                .output('outputfile.gif')
+                .output('output.gif')
                 .on('error', (err, stdout, stderr) => {
                     console.log(stdout)
                     console.error(stderr);
@@ -194,6 +204,22 @@ const main = async () => {
                 })
                 .on('end', res)
                 .run());
+
+        if (fs.statSync('output.gif').size > 8 * 1024 * 1024) {
+            output = 'output.mp4';
+
+            await new Promise<void>((res, rej) =>
+                ffmpeg()
+                    .input('output.gif')
+                    .output('output.mp4')
+                    .on('error', (err, stdout, stderr) => {
+                        console.log(stdout)
+                        console.error(stderr);
+                        rej(err)
+                    })
+                    .on('end', res)
+                    .run());
+        }
 
         shelljs.rm('-rf', framesList);
         shelljs.rm('-rf', recording.tmpDir);
@@ -207,7 +233,7 @@ const main = async () => {
         const message = await channel.send({
             content: player && button ? `${player.nickname || player.displayName} pressed ${joyToWord(button)}...` : undefined,
             files: [{
-                attachment: path.resolve('outputfile.gif'),
+                attachment: path.resolve(output),
             }],
             components: buttons(false),
         });
@@ -325,6 +351,14 @@ const buttons = (disabled: boolean = false, highlight?: string) => {
             )
     ] as any[];
 };
+
+const isDirection = (input?: InputState) => {
+    if (input?.UP) return true;
+    if (input?.DOWN) return true;
+    if (input?.LEFT) return true;
+    if (input?.RIGHT) return true;
+    return false;
+}
 
 
 const joyToWord = (input: InputState) => {
