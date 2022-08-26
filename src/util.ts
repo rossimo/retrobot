@@ -16,11 +16,12 @@ export const loadRom = (core: any, data: ArrayBufferLike) => {
 }
 
 export const loadState = (core: any, state: ArrayBufferLike) => {
+    const size = core.retro_serialize_size();
     const pointer = core.asm.malloc(state.byteLength);
-    const heap = new Uint8Array(core.HEAPU8.buffer, pointer, state.byteLength);
+    const heap = new Uint8Array(core.HEAPU8.buffer, pointer, size);
     heap.set(new Uint8Array(state));
 
-    const result = core.retro_unserialize(pointer, state.byteLength);
+    const result = core.retro_unserialize(pointer, size);
     core.asm.free(pointer);
 
     if (!result) {

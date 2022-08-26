@@ -35,16 +35,16 @@ void simple_retro_get_system_av_info(emscripten::val obj)
 
 bool simple_retro_serialize(emscripten::val dataVal, emscripten::val sizeVal)
 {
-    void *data = (void *)dataVal.as<unsigned int>();
-    size_t size = sizeVal.as<unsigned int>();
+    void *data = (void *)dataVal.as<unsigned>();
+    size_t size = sizeVal.as<unsigned>();
 
     return retro_serialize(data, size);
 }
 
 bool simple_retro_unserialize(emscripten::val dataVal, emscripten::val sizeVal)
 {
-    void *data = (void *)dataVal.as<unsigned int>();
-    size_t size = sizeVal.as<unsigned int>();
+    void *data = (void *)dataVal.as<unsigned>();
+    size_t size = sizeVal.as<unsigned>();
 
     return retro_unserialize(data, size);
 }
@@ -55,7 +55,7 @@ bool inner_retro_environment(unsigned cmd, void *data)
 {
     if (retro_environment_callback != emscripten::val::undefined())
     {
-        return retro_environment_callback(cmd, (unsigned int)data).as<unsigned int>();
+        return retro_environment_callback(cmd, (unsigned)data).as<bool>();
     }
 
     return false;
@@ -74,7 +74,7 @@ void inner_retro_set_video_refresh(const void *data, unsigned width, unsigned he
 {
     if (retro_video_refresh_callback != emscripten::val::undefined())
     {
-        retro_video_refresh_callback((unsigned int)data, (unsigned int)width, (unsigned int)height, (unsigned int)pitch);
+        retro_video_refresh_callback((unsigned)data, (unsigned int)width, (unsigned int)height, (unsigned int)pitch);
     }
 }
 
@@ -115,6 +115,7 @@ size_t inner_retro_set_audio_sample_batch(const int16_t *data, size_t frames)
 
 bool simple_retro_load_game(emscripten::val val)
 {
+    retro_set_environment(&inner_retro_environment);
     retro_set_video_refresh(&inner_retro_set_video_refresh);
     retro_set_input_poll(&inner_retro_set_input_poll);
     retro_set_input_state(&inner_retro_set_input_state);
@@ -123,7 +124,7 @@ bool simple_retro_load_game(emscripten::val val)
     retro_init();
 
     retro_game_info info;
-    info.data = (const char *)val["data"].as<unsigned int>();
+    info.data = (const char *)val["data"].as<unsigned>();
     info.size = val["size"].as<int>();
 
     return retro_load_game(&info);
