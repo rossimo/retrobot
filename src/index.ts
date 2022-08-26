@@ -31,7 +31,7 @@ const INPUTS: InputState[] = [
 ];
 
 const main = async () => {
-    const Core = require('../cores/gambatte_libretro');
+    const Core = require('../cores/snes9x2010_libretro');
 
     let core = await Core();
 
@@ -49,7 +49,7 @@ const main = async () => {
 
     core.retro_set_environment(env(core));
 
-    const game = fs.readFileSync('pokemon.gb').buffer;
+    const game = fs.readFileSync('ffiii.sfc').buffer;
     loadGame(core, game);
 
     const system_info = {};
@@ -79,15 +79,16 @@ const main = async () => {
         quality: 100
     };
 
+    /*
     for (let j = 0; j < 1; j++) {
         await executeFrame(core, { A: true }, recording, 4);
 
         await executeFrame(core, {}, recording, 26);
     }
-
+    */
     let state: Uint8Array;
 
-    test: for (let i = 0; i < 60; i++) {
+    test: for (let i = 0; i < 30; i++) {
         await executeFrame(core, {}, recording, 40);
 
         state = saveState(core);
@@ -121,7 +122,7 @@ const main = async () => {
 
         loadState(core, state);
         await executeFrame(core, input, recording, 4);
-        await executeFrame(core, {}, null, 16);
+        await executeFrame(core, {}, recording, 16);
     }
 
     const frames = await Promise.all(recording.frames);
