@@ -17,9 +17,9 @@ export const loadRom = (core: any, data: ArrayBufferLike) => {
 
 export const loadState = (core: any, state: ArrayBufferLike) => {
     const size = core.retro_serialize_size();
-    const pointer = core.asm.malloc(state.byteLength);
+    const pointer = core.asm.malloc(size);
     const heap = new Uint8Array(core.HEAPU8.buffer, pointer, size);
-    heap.set(new Uint8Array(state));
+    heap.set(new Uint8Array(new Uint8Array(state)));
 
     const result = core.retro_unserialize(pointer, size);
     core.asm.free(pointer);
@@ -34,13 +34,14 @@ export const saveState = (core: any) => {
     const pointer = core.asm.malloc(size);
 
     const result = core.retro_serialize(pointer, size);
+    const data = new Uint8Array(new Uint8Array(core.HEAPU8.buffer, pointer, size));
     core.asm.free(pointer);
 
     if (!result) {
         throw new Error('Unable to save state');
     }
 
-    return new Uint8Array(core.HEAPU8.buffer, pointer, size);
+    return data;
 }
 
 export interface Frame {

@@ -58,7 +58,7 @@ const main = async () => {
     let playerInputs = args.map(arg => parseInput(arg));;
     let player: GuildMember;
 
-    const Core = require('../cores/snes9x2010_libretro');
+    const Core = require('../cores/gambatte_libretro');
 
     const core = await Core();
 
@@ -67,16 +67,33 @@ const main = async () => {
             return false;
         }
 
-        if (cmd == 3) {
-            core.HEAPU8[data] = 1;
+        if (cmd == 66) {
+            return false;
         }
 
-        return true;
+        if (cmd == 17) {
+            return false;
+        }
+
+        if (cmd == 3) {
+            core.HEAPU8[data] = 1;
+            return true;
+        }
+
+        if (cmd == (51 | 0x10000)) {
+            return true;
+        }
+
+        if (cmd == 10) {
+            return true;
+        }
+
+        return false;
     }
 
     core.retro_set_environment(env(core));
 
-    const game = fs.readFileSync('ffiii.sfc').buffer;
+    const game = fs.readFileSync('pokemon.gb').buffer;
     loadGame(core, game);
 
     const system_info = {};
@@ -127,8 +144,8 @@ const main = async () => {
             }
         }
 
-        test: for (let i = 0; i < 30; i++) {
-            await executeFrame(core, {}, recording, 40);
+        test: for (let i = 0; i < 30 / 2; i++) {
+            await executeFrame(core, {}, recording, 100);
 
             const state = saveState(core);
 

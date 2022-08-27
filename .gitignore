@@ -6,5 +6,6 @@ node_modules
 *.sfc
 *.smc
 *.sav
+*.nes
 frames.txt
 .env
