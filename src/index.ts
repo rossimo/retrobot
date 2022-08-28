@@ -22,7 +22,7 @@ const RECORDING_FRAMERATE = 20;
 
 const INPUTS: InputState[] = [
     { A: true },
-    { B: true },
+    // { B: true },
     // { START: true },
     // { SELECT: true },
     { UP: true },
@@ -132,21 +132,22 @@ const main = async () => {
             }
         }
 
-        test: for (let i = 0; i < 30 / 1.5; i++) {
-            await executeFrame(core, {}, recording, 70);
+        const endFrameCount = recording.executedFrameCount + 30 * 60;
+        test: while (recording.executedFrameCount < endFrameCount) {
+            await executeFrame(core, {}, recording, 50);
 
             const state = saveState(core);
 
             const possibilities: { [hash: string]: InputState } = {};
 
             await executeFrame(core, {}, null, 4);
-            const controlResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
+            const controlResult = await md5((await executeFrame(core, {}, null, 20)).buffer);
 
             for (const testInput of INPUTS) {
                 loadState(core, state);
 
                 await executeFrame(core, testInput, null, 4)
-                const testResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
+                const testResult = await md5((await executeFrame(core, {}, null, 20)).buffer);
 
                 if (controlResult != testResult) {
                     possibilities[testResult] = testInput;
@@ -166,8 +167,6 @@ const main = async () => {
             await executeFrame(core, autoplay, recording, 4);
             await executeFrame(core, {}, recording, 16);
         }
-
-        await executeFrame(core, {}, recording, 20);
 
         const encodingStart = performance.now();
 
