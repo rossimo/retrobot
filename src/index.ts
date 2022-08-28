@@ -63,18 +63,6 @@ const main = async () => {
     const core = await Core();
 
     const env = (core) => (cmd: number, data: any) => {
-        if (cmd == 27) {
-            return false;
-        }
-
-        if (cmd == 66) {
-            return false;
-        }
-
-        if (cmd == 17) {
-            return false;
-        }
-
         if (cmd == 3) {
             core.HEAPU8[data] = 1;
             return true;
