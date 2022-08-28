@@ -167,7 +167,7 @@ const main = async () => {
             await executeFrame(core, {}, recording, 16);
         }
 
-        await executeFrame(core, {}, recording, 40);
+        await executeFrame(core, {}, recording, 20);
 
         const encodingStart = performance.now();
 

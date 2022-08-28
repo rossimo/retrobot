@@ -158,6 +158,10 @@ export const executeFrame = async (core: any, input: InputState = {}, recording:
         result = frame;
 
         if (recording) {
+            if ((recording.executedFrameCount % 10) == 0) {
+                await new Promise(res => setImmediate(res));
+            }
+            
             frame.buffer = frame.buffer ? frame.buffer : recording?.lastBuffer;
 
             recording.lastBuffer = frame.buffer;
