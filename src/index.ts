@@ -141,13 +141,13 @@ const main = async () => {
             const possibilities: { [hash: string]: InputState } = {};
 
             await executeFrame(core, {}, null, 4);
-            const controlResult = await md5((await executeFrame(core, {}, null, 20)).buffer);
+            const controlResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
 
             for (const testInput of INPUTS) {
                 loadState(core, state);
 
                 await executeFrame(core, testInput, null, 4)
-                const testResult = await md5((await executeFrame(core, {}, null, 20)).buffer);
+                const testResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
 
                 if (controlResult != testResult) {
                     possibilities[testResult] = testInput;
