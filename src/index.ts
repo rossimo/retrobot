@@ -58,7 +58,7 @@ const main = async () => {
     let playerInputs = args.map(arg => parseInput(arg));;
     let player: GuildMember;
 
-    const Core = require('../cores/gambatte_libretro');
+    const Core = require('../cores/mgba_libretro');
 
     const core = await Core();
 

@@ -55,8 +55,8 @@ bool inner_retro_environment(unsigned cmd, void *data)
 {
     if (cmd == RETRO_ENVIRONMENT_GET_VARIABLE) {
         retro_variable *var = (retro_variable *) data;
-        if (strcmp(var->key, "gambatte_gb_colorization") == 0) {
-            var->value = "GBC";
+        if (strcmp(var->key, "mgba_sgb_borders") == 0) {
+            var->value = "OFF";
             return true;
         }
     }
