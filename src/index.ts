@@ -96,8 +96,6 @@ const main = async () => {
         loadState(core, fs.readFileSync('state.sav').buffer);
     }
 
-    const start = performance.now();
-
     const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
     await client.login(process.env.DISCORD_TOKEN);
@@ -105,6 +103,8 @@ const main = async () => {
     console.log('online');
 
     while (true) {
+        const emulationStart = performance.now();
+
         const recording: Recording = {
             tmpDir: tmp.dirSync().name,
             maxFramerate: av_info.timing_fps / RECORDING_FRAMERATE,
@@ -132,8 +132,8 @@ const main = async () => {
             }
         }
 
-        test: for (let i = 0; i < 30 / 2; i++) {
-            await executeFrame(core, {}, recording, 100);
+        test: for (let i = 0; i < 30 / 1.5; i++) {
+            await executeFrame(core, {}, recording, 70);
 
             const state = saveState(core);
 
@@ -168,6 +168,10 @@ const main = async () => {
         }
 
         await executeFrame(core, {}, recording, 40);
+
+        const encodingStart = performance.now();
+
+        console.log(`Encode: ${encodingStart - emulationStart}`);
 
         const frames = await Promise.all(recording.frames);
 
@@ -229,9 +233,9 @@ const main = async () => {
         shelljs.rm('-rf', framesList);
         shelljs.rm('-rf', recording.tmpDir);
 
-        const end = performance.now();
+        const encodingEnd = performance.now();
 
-        console.log(end - start);
+        console.log(`Encode: ${encodingEnd - encodingStart}`);
 
         console.log(`Sending...`);
 
