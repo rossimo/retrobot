@@ -134,7 +134,7 @@ const main = async () => {
 
         const endFrameCount = recording.executedFrameCount + 30 * 60;
         test: while (recording.executedFrameCount < endFrameCount) {
-            await executeFrame(core, {}, recording, 50);
+            await executeFrame(core, {}, recording, 48);
 
             const state = saveState(core);
 
