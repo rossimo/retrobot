@@ -1,4 +1,4 @@
-import { crc32c } from 'hash-wasm';
+import { crc32 } from 'hash-wasm';
 import * as path from 'path';
 import * as sharp from 'sharp';
 import { arraysEqual } from './utils';
@@ -169,7 +169,7 @@ export const executeFrame = async (core: any, input: InputState = {}, recording:
             recording.lastBuffer = frame.buffer;
             const executedFrameCount = recording.executedFrameCount++;
 
-            const bufferHash = await crc32c(frame.buffer);
+            const bufferHash = await crc32(frame.buffer);
 
             if (recording.framesSinceRecord != -1 && (recording.framesSinceRecord < recording.maxFramerate || (bufferHash == recording.lastRecordedBufferHash))) {
                 recording.framesSinceRecord++;
