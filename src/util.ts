@@ -1,3 +1,4 @@
+import { crc32c } from 'hash-wasm';
 import * as path from 'path';
 import * as sharp from 'sharp';
 import { arraysEqual } from './utils';
@@ -72,6 +73,7 @@ export interface Recording {
     frames: Promise<{ file: string, frameNumber: number }>[]
     lastBuffer: Uint16Array
     lastRecordedBuffer: Uint16Array
+    lastRecordedBufferHash: any
     framesSinceRecord: number
     width: number
     height: number
@@ -161,19 +163,22 @@ export const executeFrame = async (core: any, input: InputState = {}, recording:
             if ((recording.executedFrameCount % 10) == 0) {
                 await new Promise(res => setImmediate(res));
             }
-            
+
             frame.buffer = frame.buffer ? frame.buffer : recording?.lastBuffer;
 
             recording.lastBuffer = frame.buffer;
             const executedFrameCount = recording.executedFrameCount++;
 
-            if (recording.framesSinceRecord != -1 && (recording.framesSinceRecord < recording.maxFramerate || arraysEqual(frame.buffer, recording.lastRecordedBuffer))) {
+            const bufferHash = await crc32c(frame.buffer);
+
+            if (recording.framesSinceRecord != -1 && (recording.framesSinceRecord < recording.maxFramerate || (bufferHash == recording.lastRecordedBufferHash))) {
                 recording.framesSinceRecord++;
                 continue;
             }
 
             recording.framesSinceRecord = 0;
             recording.lastRecordedBuffer = frame.buffer;
+            recording.lastRecordedBufferHash = bufferHash;
 
             const file = path.join(recording.tmpDir, `frame-${executedFrameCount}.png`);
 

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import * as fs from 'fs';
 import * as tmp from 'tmp';
-import { crc32 } from 'hash-wasm';
+import { crc32c } from 'hash-wasm';
 import { values, first, size, last, toLower, range, isEqual } from 'lodash';
 import * as shelljs from 'shelljs';
 import { performance } from 'perf_hooks';
@@ -25,8 +25,8 @@ const INPUTS: InputState[] = [
     // { B: true },
     // { START: true },
     // { SELECT: true },
-    { UP: true },
     { DOWN: true },
+    { UP: true },
     { LEFT: true },
     { RIGHT: true }
 ];
@@ -112,6 +112,7 @@ const main = async () => {
             frames: [],
             lastBuffer: new Uint16Array(),
             lastRecordedBuffer: new Uint16Array(),
+            lastRecordedBufferHash: null,
             framesSinceRecord: -1,
             width: av_info.geometry_base_width * 2,
             height: av_info.geometry_base_height * 2,
@@ -132,22 +133,22 @@ const main = async () => {
             }
         }
 
-        const endFrameCount = recording.executedFrameCount + 30 * 60;
+        const endFrameCount = recording.executedFrameCount + 15 * 60;
         test: while (recording.executedFrameCount < endFrameCount) {
-            await executeFrame(core, {}, recording, 48);
+            await executeFrame(core, {}, recording, 32);
 
             const state = saveState(core);
 
             const possibilities: { [hash: string]: InputState } = {};
 
             await executeFrame(core, {}, null, 4);
-            const controlResult = await crc32((await executeFrame(core, {}, null, 16)).buffer);
+            const controlResult = await crc32c((await executeFrame(core, {}, null, 16)).buffer);
 
             for (const testInput of INPUTS) {
                 loadState(core, state);
 
                 await executeFrame(core, testInput, null, 4)
-                const testResult = await crc32((await executeFrame(core, {}, null, 16)).buffer);
+                const testResult = await crc32c((await executeFrame(core, {}, null, 16)).buffer);
 
                 if (controlResult != testResult) {
                     possibilities[testResult] = testInput;
