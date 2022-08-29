@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import * as fs from 'fs';
 import * as tmp from 'tmp';
-import { md5 } from 'hash-wasm';
+import { crc32 } from 'hash-wasm';
 import { values, first, size, last, toLower, range, isEqual } from 'lodash';
 import * as shelljs from 'shelljs';
 import { performance } from 'perf_hooks';
@@ -141,13 +141,13 @@ const main = async () => {
             const possibilities: { [hash: string]: InputState } = {};
 
             await executeFrame(core, {}, null, 4);
-            const controlResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
+            const controlResult = await crc32((await executeFrame(core, {}, null, 16)).buffer);
 
             for (const testInput of INPUTS) {
                 loadState(core, state);
 
                 await executeFrame(core, testInput, null, 4)
-                const testResult = await md5((await executeFrame(core, {}, null, 16)).buffer);
+                const testResult = await crc32((await executeFrame(core, {}, null, 16)).buffer);
 
                 if (controlResult != testResult) {
                     possibilities[testResult] = testInput;
