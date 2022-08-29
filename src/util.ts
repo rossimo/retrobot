@@ -72,7 +72,6 @@ export interface Recording {
     executedFrameCount: number
     frames: Promise<{ file: string, frameNumber: number }>[]
     lastBuffer: Uint16Array
-    lastRecordedBuffer: Uint16Array
     lastRecordedBufferHash: any
     framesSinceRecord: number
     width: number
@@ -177,7 +176,6 @@ export const executeFrame = async (core: any, input: InputState = {}, recording:
             }
 
             recording.framesSinceRecord = 0;
-            recording.lastRecordedBuffer = frame.buffer;
             recording.lastRecordedBufferHash = bufferHash;
 
             const file = path.join(recording.tmpDir, `frame-${executedFrameCount}.png`);

@@ -1,101 +1,16 @@
 import 'dotenv/config';
 import * as fs from 'fs';
-import * as tmp from 'tmp';
-import { crc32 } from 'hash-wasm';
-import { values, first, size, last, toLower, range, isEqual } from 'lodash';
-import * as shelljs from 'shelljs';
-import { performance } from 'perf_hooks';
-import * as ffmpeg from 'fluent-ffmpeg';
-import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
-import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, GatewayIntentBits, Interaction, TextChannel, Message, ButtonInteraction, GuildMember } from 'discord.js';
+import { last, toLower, range } from 'lodash';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, GatewayIntentBits, Interaction, TextChannel, GuildMember } from 'discord.js';
 
-import { executeFrame, InputState, loadRom as loadGame, loadState, Recording, saveState } from './util';
-import path = require('path');
-
-tmp.setGracefulCleanup();
-
-ffmpeg.setFfmpegPath(ffmpegPath);
-ffmpeg.setFfprobePath(ffprobePath);
-
-const RECORDING_FRAMERATE = 20;
-
-const INPUTS: InputState[] = [
-    { A: true },
-    // { B: true },
-    // { START: true },
-    // { SELECT: true },
-    { DOWN: true },
-    { UP: true },
-    { LEFT: true },
-    { RIGHT: true }
-];
-
-const parseInput = (input: string) => {
-    switch (toLower(input)) {
-        case 'a':
-            return { A: true };
-        case 'b':
-            return { B: true };
-        case 'up':
-            return { UP: true };
-        case 'down':
-            return { DOWN: true };
-        case 'left':
-            return { LEFT: true };
-        case 'right':
-            return { RIGHT: true };
-        case 'select':
-            return { SELECT: true };
-        case 'start':
-            return { START: true };
-    }
-}
+import { InputState } from './util';
+import { CoreType, emulate } from './emulate';
 
 const main = async () => {
     const args = process.argv.slice(2);
 
     let playerInputs = args.map(arg => parseInput(arg));;
     let player: GuildMember;
-
-    const Core = require('../cores/mgba_libretro');
-
-    const core = await Core();
-
-    const env = (core) => (cmd: number, data: any) => {
-        if (cmd == 3) {
-            core.HEAPU8[data] = 1;
-            return true;
-        }
-
-        if (cmd == (51 | 0x10000)) {
-            return true;
-        }
-
-        if (cmd == 10) {
-            return true;
-        }
-
-        return false;
-    }
-
-    core.retro_set_environment(env(core));
-
-    const game = fs.readFileSync('pokemon.gb').buffer;
-    loadGame(core, game);
-
-    const system_info = {};
-    const av_info: any = {};
-
-    core.retro_get_system_info(system_info);
-    core.retro_get_system_av_info(av_info);
-
-    console.log({ system_info, av_info });
-
-    if (fs.existsSync('state.sav')) {
-        loadState(core, fs.readFileSync('state.sav').buffer);
-    }
-
     const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
     await client.login(process.env.DISCORD_TOKEN);
@@ -103,146 +18,24 @@ const main = async () => {
     console.log('online');
 
     while (true) {
-        const emulationStart = performance.now();
+        const game = fs.readFileSync('ffiii.sfc').buffer;
 
-        const recording: Recording = {
-            tmpDir: tmp.dirSync().name,
-            maxFramerate: av_info.timing_fps / RECORDING_FRAMERATE,
-            executedFrameCount: -1,
-            frames: [],
-            lastBuffer: new Uint16Array(),
-            lastRecordedBuffer: new Uint16Array(),
-            lastRecordedBufferHash: null,
-            framesSinceRecord: -1,
-            width: av_info.geometry_base_width * 2,
-            height: av_info.geometry_base_height * 2,
-            quality: 100
-        };
+        const savedState = fs.existsSync('state.sav')
+            ? fs.readFileSync('state.sav').buffer
+            : null;
+
+        const { recording, recordingName, state } = await emulate(CoreType.SNES, game, savedState, playerInputs);
+
+        fs.writeFileSync('state.sav', state);
 
         const button = last(playerInputs);
-        for (let i = 0; i < playerInputs.length; i++) {
-            const prev = playerInputs[i - 1];
-            const current = playerInputs[i];
-            const next = playerInputs[i + 1];
-
-            if (isDirection(current) && (isEqual(current, next) || isEqual(current, prev))) {
-                await executeFrame(core, current, recording, 20);
-            } else {
-                await executeFrame(core, current, recording, 4);
-                await executeFrame(core, {}, recording, 16);
-            }
-        }
-
-        const endFrameCount = recording.executedFrameCount + 15 * 60;
-        test: while (recording.executedFrameCount < endFrameCount) {
-            await executeFrame(core, {}, recording, 32);
-
-            const state = saveState(core);
-
-            const possibilities: { [hash: string]: InputState } = {};
-
-            await executeFrame(core, {}, null, 4);
-            const controlResult = await crc32((await executeFrame(core, {}, null, 16)).buffer);
-
-            for (const testInput of INPUTS) {
-                loadState(core, state);
-
-                await executeFrame(core, testInput, null, 4)
-                const testResult = await crc32((await executeFrame(core, {}, null, 16)).buffer);
-
-                if (controlResult != testResult) {
-                    possibilities[testResult] = testInput;
-                }
-
-                if (size(possibilities) > 1) {
-                    loadState(core, state);
-                    break test;
-                }
-            }
-
-            const autoplay = size(possibilities) == 1
-                ? first(values(possibilities))
-                : {};
-
-            loadState(core, state);
-            await executeFrame(core, autoplay, recording, 4);
-            await executeFrame(core, {}, recording, 16);
-        }
-
-        const encodingStart = performance.now();
-
-        console.log(`Encode: ${encodingStart - emulationStart}`);
-
-        const frames = await Promise.all(recording.frames);
-
-        fs.writeFileSync('state.sav', saveState(core));
-
-        shelljs.mkdir('-p', 'output');
-
-        let framesTxt = '';
-        for (let i = 0; i < frames.length; i++) {
-            const current = frames[i];
-
-            framesTxt += `file '${current.file}'\n`;
-
-            const next = frames[i + 1];
-            if (next) {
-                framesTxt += `duration ${(next.frameNumber - current.frameNumber) / 60}\n`;
-            }
-        }
-
-        framesTxt += `duration 5\n`;
-        framesTxt += `file '${last(frames).file}'\n`;
-
-        const { name: framesList } = tmp.fileSync();
-        fs.writeFileSync(framesList, framesTxt);
-
-        let output = 'output.gif';
-
-        await new Promise<void>((res, rej) =>
-            ffmpeg()
-                .input(framesList)
-                .addInputOption('-safe', '0')
-                .inputFormat('concat')
-                .addOption('-filter_complex', `split=2 [a][b]; [a] palettegen=reserve_transparent=off [pal]; [b] fifo [b]; [b] [pal] paletteuse`)
-                .output('output.gif')
-                .on('error', (err, stdout, stderr) => {
-                    console.log(stdout)
-                    console.error(stderr);
-                    rej(err)
-                })
-                .on('end', res)
-                .run());
-
-        if (fs.statSync('output.gif').size > 8 * 1024 * 1024) {
-            output = 'output.mp4';
-
-            await new Promise<void>((res, rej) =>
-                ffmpeg()
-                    .input('output.gif')
-                    .output('output.mp4')
-                    .on('error', (err, stdout, stderr) => {
-                        console.log(stdout)
-                        console.error(stderr);
-                        rej(err)
-                    })
-                    .on('end', res)
-                    .run());
-        }
-
-        shelljs.rm('-rf', framesList);
-        shelljs.rm('-rf', recording.tmpDir);
-
-        const encodingEnd = performance.now();
-
-        console.log(`Encode: ${encodingEnd - encodingStart}`);
-
         console.log(`Sending...`);
 
         const message = await channel.send({
             content: player && button ? `${player.nickname || player.displayName} pressed ${joyToWord(button)}...` : undefined,
             files: [{
-                attachment: path.resolve(output),
+                attachment: recording,
+                name: recordingName
             }],
             components: buttons(false),
         });
@@ -279,6 +72,27 @@ const main = async () => {
         }
     }
 }
+
+const parseInput = (input: string) => {
+    switch (toLower(input)) {
+        case 'a':
+            return { A: true };
+        case 'b':
+            return { B: true };
+        case 'up':
+            return { UP: true };
+        case 'down':
+            return { DOWN: true };
+        case 'left':
+            return { LEFT: true };
+        case 'right':
+            return { RIGHT: true };
+        case 'select':
+            return { SELECT: true };
+        case 'start':
+            return { START: true };
+    }
+};
 
 const isNumeric = (value) => {
     return /^\d+$/.test(value);
@@ -360,15 +174,6 @@ const buttons = (disabled: boolean = false, highlight?: string) => {
             )
     ] as any[];
 };
-
-const isDirection = (input?: InputState) => {
-    if (input?.UP) return true;
-    if (input?.DOWN) return true;
-    if (input?.LEFT) return true;
-    if (input?.RIGHT) return true;
-    return false;
-}
-
 
 const joyToWord = (input: InputState) => {
     if (input.A) return 'A';
