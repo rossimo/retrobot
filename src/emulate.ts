@@ -17,16 +17,21 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 
 const RECORDING_FRAMERATE = 20;
+const MINIMUM_FRAMES = 60;
 
-const INPUTS: InputState[] = [
-    { A: true },
-    // { B: true },
+interface AutoplayInputState extends InputState {
+    autoplay?: boolean
+}
+
+const TEST_INPUTS: AutoplayInputState[] = [
+    { A: true, autoplay: true },
+    { B: true, autoplay: false },
     // { START: true },
     // { SELECT: true },
-    { DOWN: true },
-    { UP: true },
-    { LEFT: true },
-    { RIGHT: true }
+    { DOWN: true, autoplay: true },
+    { UP: true, autoplay: true },
+    { LEFT: true, autoplay: true },
+    { RIGHT: true, autoplay: true }
 ];
 
 export enum CoreType {
@@ -60,20 +65,20 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
                 core.HEAPU8[data] = 1;
                 return true;
             }
-    
+
             if (cmd == (51 | 0x10000)) {
                 return true;
             }
-    
+
             if (cmd == 10) {
                 return true;
             }
-    
+
             return false;
         });
-    
+
         loadGame(core, game);
-    
+
         if (state) {
             loadState(core, state);
         }
@@ -88,7 +93,7 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
     const recording: Recording = {
         tmpDir: tmp.dirSync().name,
         maxFramerate: av_info.timing_fps / RECORDING_FRAMERATE,
-        executedFrameCount: -1,
+        executedFrameCount: 0,
         frames: [],
         lastBuffer: new Uint16Array(),
         lastRecordedBufferHash: null,
@@ -117,19 +122,23 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
 
         const state = saveState(core);
 
-        const possibilities: { [hash: string]: InputState } = {};
+        const possibilities: { [hash: string]: AutoplayInputState } = {};
 
         await executeFrame(core, {}, null, 4);
         const controlResult = await crc32((await executeFrame(core, {}, null, 20)).buffer);
 
-        for (const testInput of INPUTS) {
+        for (const testInput of TEST_INPUTS) {
             loadState(core, state);
 
             await executeFrame(core, testInput, null, 4)
             const testResult = await crc32((await executeFrame(core, {}, null, 20)).buffer);
 
             if (controlResult != testResult) {
-                possibilities[testResult] = testInput;
+                if (possibilities[testResult] && testInput.autoplay) {
+                    possibilities[testResult] = testInput;
+                } else if (!possibilities[testResult]) {
+                    possibilities[testResult] = testInput;
+                }
             }
 
             if (size(possibilities) > 1) {
@@ -138,13 +147,21 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
             }
         }
 
-        const autoplay = size(possibilities) == 1
-            ? first(values(possibilities))
+        const possibleAutoplay = first(values(possibilities));
+
+        const autoplay = size(possibilities) == 1 && possibleAutoplay.autoplay
+            ? possibleAutoplay
             : {};
 
         loadState(core, state);
         await executeFrame(core, autoplay, recording, 4);
         await executeFrame(core, {}, recording, 20);
+    }
+
+    const remainingFrames = MINIMUM_FRAMES - recording.executedFrameCount;
+
+    if (remainingFrames > 0) {
+        await executeFrame(core, {}, recording, remainingFrames);
     }
 
     const frames = await Promise.all(recording.frames);
@@ -163,6 +180,8 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
         }
     }
 
+    framesTxt += `duration ${1 / 60}\n`;
+    framesTxt += `file '${last(frames).file}'\n`;
     framesTxt += `duration 5\n`;
     framesTxt += `file '${last(frames).file}'\n`;
 
