@@ -9,3 +9,4 @@ node_modules
 *.nes
 frames.txt
 .env
+data

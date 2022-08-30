@@ -1,76 +1,130 @@
 import 'dotenv/config';
 import * as fs from 'fs';
-import { last, toLower, range } from 'lodash';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, GatewayIntentBits, Interaction, TextChannel, GuildMember } from 'discord.js';
+import * as path from 'path';
+import { request } from 'undici';
+import { v4 as uuid } from 'uuid';
+import * as shelljs from 'shelljs';
+import * as LruCache from 'lru-cache';
+import { toLower, endsWith, range } from 'lodash';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, GatewayIntentBits, Interaction, Message } from 'discord.js';
 
 import { InputState } from './util';
 import { CoreType, emulate } from './emulate';
 
-const main = async () => {
-    const args = process.argv.slice(2);
+const NES = ['nes'];
+const SNES = ['sfc', 'smc'];
+const GB = ['gb', 'gbc', 'gba'];
 
-    let playerInputs = args.map(arg => parseInput(arg));;
-    let player: GuildMember;
-    const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const ALL = [...NES, ...SNES, ...GB];
+
+const main = async () => {
+    const coreCache = new LruCache({ max: 100 });
+    const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
     await client.login(process.env.DISCORD_TOKEN);
-    const channel = await client.channels.fetch(process.env.DISCORD_CHANNEL_ID) as TextChannel;
     console.log('online');
 
-    while (true) {
-        const game = fs.readFileSync('ffiii.sfc').buffer;
+    client.on('messageCreate', async (message: Message) => {
+        const attachment = message.attachments.find(att => !!ALL.find(ext => endsWith(att.name, ext)));
+        if (!attachment) {
+            return;
+        }
 
-        const savedState = fs.existsSync('state.sav')
-            ? fs.readFileSync('state.sav').buffer
-            : null;
+        let coreType: CoreType;
+        if (NES.find(ext => endsWith(attachment.name, ext))) {
+            coreType = CoreType.NES;
+        } else if (SNES.find(ext => endsWith(attachment.name, ext))) {
+            coreType = CoreType.SNES;
+        } else if (GB.find(ext => endsWith(attachment.name, ext))) {
+            coreType = CoreType.GB;
+        } else {
+            return;
+        }
 
-        const { recording, recordingName, state } = await emulate(CoreType.SNES, game, savedState, playerInputs);
+        const { body } = await request(attachment.url);
+        const buffer = Buffer.from(await body.arrayBuffer());
 
-        fs.writeFileSync('state.sav', state);
+        const id = uuid().slice(0, 5);
 
-        const button = last(playerInputs);
-        console.log(`Sending...`);
+        const data = path.resolve('data', id);
+        shelljs.mkdir('-p', data);
 
-        const message = await channel.send({
-            content: player && button ? `${player.nickname || player.displayName} pressed ${joyToWord(button)}...` : undefined,
+        const gameFile = path.join(data, attachment.name);
+        fs.writeFileSync(gameFile, buffer);
+
+        const info = {
+            game: attachment.name,
+            coreType,
+            guild: message.guildId,
+            channelId: message.channelId
+        };
+
+        const infoFile = path.join(data, 'info.json');
+        fs.writeFileSync(infoFile, JSON.stringify(info, null, 4));
+
+        const { recording, recordingName, state } = await emulate(coreType, buffer, null, []);
+
+        const stateFile = path.join(data, 'state.sav');
+        fs.writeFileSync(stateFile, state);
+
+        await message.channel.send({
             files: [{
                 attachment: recording,
                 name: recordingName
             }],
-            components: buttons(false),
+            components: buttons(id, 1, true),
         });
+    });
 
-        console.log(`Waiting...`);
-        let multiplier = 1;
-        while (true) {
-            const interaction = await new Promise<Interaction<CacheType>>((res, rej) => {
-                client.once('interactionCreate', res);
-            });
+    client.on('interactionCreate', async (interaction: Interaction<CacheType>) => {
+        if (interaction.isButton()) {
+            const player = client.guilds.cache.get(interaction.guildId).members.cache.get(interaction.user.id);
+            const message = interaction.message;
 
-            if (interaction.isButton()) {
-                player = client.guilds.cache.get(process.env.DISCORD_GUILD_ID).members.cache.get(interaction.user.id);
+            let update = new Promise(res => res({}));
 
-                let update = new Promise(res => res({}));
+            const [id, button, multiplier] = interaction.customId.split('-');
 
-                if (isNumeric(interaction.customId)) {
-                    // nothing
-                } else {
-                    update = update.then(() => message.edit({ components: buttons(true, interaction.customId) }));
+            let playerInputs: InputState[] = [];
+
+            if (isNumeric(button)) {
+                update = update.then(() => message.edit({ components: buttons(id, parseInt(button), true) }));
+            } else {
+                update = update.then(() => message.edit({ components: buttons(id, parseInt(multiplier), false, button) }));
+                playerInputs = range(0, parseInt(multiplier)).map(() => parseInput(button));
+            }
+
+            update = update.then(() => interaction.update({}));
+
+            update.catch(err => console.warn(err));
+
+            if (playerInputs.length > 0 && fs.existsSync(path.resolve('data', id))) {
+                const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
+                let core = coreCache.get(id);
+                coreCache.delete(id);
+
+                let game;
+                let oldState;
+                if (!core) {
+                    game = fs.readFileSync(path.resolve('data', id, info.game))
+                    oldState = fs.readFileSync(path.resolve('data', id, 'state.sav'));
                 }
 
-                update = update.then(() => interaction.update({}));
+                const { recording, recordingName, state: newState, core: newCore } = await emulate(info.coreType, game, oldState, playerInputs, core);
+                coreCache.set(id, newCore);
 
-                update.catch(err => console.warn(err));
+                fs.writeFileSync(path.resolve('data', id, 'state.sav'), newState);
 
-                if (isNumeric(interaction.customId)) {
-                    multiplier = parseInt(interaction.customId);
-                } else {
-                    playerInputs = range(0, multiplier).map(() => parseInput(interaction.customId));
-                    break;
-                }
+                message.channel.send({
+                    files: [{
+                        attachment: recording,
+                        name: recordingName
+                    }],
+                    components: buttons(id, 1, true)
+                }).catch(err => console.warn(err));
             }
         }
-    }
+    });
 }
 
 const parseInput = (input: string) => {
@@ -98,65 +152,65 @@ const isNumeric = (value) => {
     return /^\d+$/.test(value);
 };
 
-const buttons = (disabled: boolean = false, highlight?: string) => {
+const buttons = (id: string, multiplier: number = 1, enabled: boolean = true, highlight?: string) => {
     const a = new ButtonBuilder()
-        .setCustomId('a')
+        .setCustomId(id + '-' + 'a' + '-' + multiplier)
         .setEmoji('🇦')
-        .setDisabled(disabled)
+        .setDisabled(!enabled)
         .setStyle(highlight == 'a' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const b = new ButtonBuilder()
-        .setCustomId('b')
+        .setCustomId(id + '-' + 'b' + '-' + multiplier)
         .setEmoji('🇧')
-        .setDisabled(disabled)
+        .setDisabled(!enabled)
         .setStyle(highlight == 'b' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const up = new ButtonBuilder()
-        .setCustomId('up')
+        .setCustomId(id + '-' + 'up' + '-' + multiplier)
         .setEmoji('⬆️')
-        .setDisabled(disabled)
+        .setDisabled(!enabled)
         .setStyle(highlight == 'up' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const down = new ButtonBuilder()
-        .setCustomId('down')
+        .setCustomId(id + '-' + 'down' + '-' + multiplier)
         .setEmoji('⬇️')
-        .setDisabled(disabled)
+        .setDisabled(!enabled)
         .setStyle(highlight == 'down' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const left = new ButtonBuilder()
-        .setCustomId('left')
+        .setCustomId(id + '-' + 'left' + '-' + multiplier)
         .setEmoji('⬅️')
-        .setDisabled(disabled)
+        .setDisabled(!enabled)
         .setStyle(highlight == 'left' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const right = new ButtonBuilder()
-        .setCustomId('Right')
+        .setCustomId(id + '-' + 'right' + '-' + multiplier)
         .setEmoji('➡️')
-        .setDisabled(disabled)
+        .setDisabled(!enabled)
         .setStyle(highlight == 'right' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const select = new ButtonBuilder()
-        .setCustomId('select')
+        .setCustomId(id + '-' + 'select' + '-' + multiplier)
         .setEmoji('⏺️')
-        .setDisabled(disabled)
+        .setDisabled(!enabled)
         .setStyle(highlight == 'select' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const start = new ButtonBuilder()
-        .setCustomId('start')
+        .setCustomId(id + '-' + 'start' + '-' + multiplier)
         .setEmoji('▶️')
-        .setDisabled(disabled)
+        .setDisabled(!enabled)
         .setStyle(highlight == 'start' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const multiply5 = new ButtonBuilder()
-        .setCustomId('5')
+        .setCustomId(id + '-' + '5' + '-' + multiplier)
         .setEmoji('5️⃣')
-        .setDisabled(disabled)
+        .setDisabled(!enabled)
         .setStyle(highlight == '5' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const multiply10 = new ButtonBuilder()
-        .setCustomId('10')
+        .setCustomId(id + '-' + '10' + '-' + multiplier)
         .setEmoji('🔟')
-        .setDisabled(disabled)
+        .setDisabled(!enabled)
         .setStyle(highlight == '10' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     return [

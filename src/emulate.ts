@@ -30,59 +30,60 @@ const INPUTS: InputState[] = [
 ];
 
 export enum CoreType {
-    NES,
-    SNES,
-    GB
+    NES = 'nes',
+    SNES = 'snes',
+    GB = 'gb'
 }
 
 const NesCore = require('../cores/quicknes_libretro');
 const SnesCore = require('../cores/snes9x2010_libretro');
 const GbCore = require('../cores/mgba_libretro');
 
-export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: ArrayBufferLike, playerInputs: InputState[]) => {
-    let core: any;
-    switch (coreType) {
-        case CoreType.NES:
-            core = await NesCore();
-            break;
-        case CoreType.SNES:
-            core = await SnesCore();
-            break;
-        case CoreType.GB:
-            core = await GbCore();
-            break;
-        default:
-            throw new Error(`Unknow core type: ${coreType}`);
+export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: ArrayBufferLike, playerInputs: InputState[], core?: any) => {
+    if (!core) {
+        switch (coreType) {
+            case CoreType.NES:
+                core = await NesCore();
+                break;
+            case CoreType.SNES:
+                core = await SnesCore();
+                break;
+            case CoreType.GB:
+                core = await GbCore();
+                break;
+            default:
+                throw new Error(`Unknow core type: ${coreType}`);
+        }
+
+        core.retro_set_environment((cmd: number, data: any) => {
+            if (cmd == 3) {
+                core.HEAPU8[data] = 1;
+                return true;
+            }
+    
+            if (cmd == (51 | 0x10000)) {
+                return true;
+            }
+    
+            if (cmd == 10) {
+                return true;
+            }
+    
+            return false;
+        });
+    
+        loadGame(core, game);
+    
+        if (state) {
+            loadState(core, state);
+        }
     }
-
-    core.retro_set_environment((cmd: number, data: any) => {
-        if (cmd == 3) {
-            core.HEAPU8[data] = 1;
-            return true;
-        }
-
-        if (cmd == (51 | 0x10000)) {
-            return true;
-        }
-
-        if (cmd == 10) {
-            return true;
-        }
-
-        return false;
-    });
-
-    loadGame(core, game);
 
     const system_info = {};
     const av_info: any = {};
 
     core.retro_get_system_info(system_info);
     core.retro_get_system_av_info(av_info);
-
-    if (state) {
-        loadState(core, state);
-    }
 
     const recording: Recording = {
         tmpDir: tmp.dirSync().name,
@@ -110,7 +111,7 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
         }
     }
 
-    const endFrameCount = recording.executedFrameCount + 20 * 60;
+    const endFrameCount = recording.executedFrameCount + 30 * 60;
     test: while (recording.executedFrameCount < endFrameCount) {
         await executeFrame(core, {}, recording, 32);
 
@@ -214,7 +215,8 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
     return {
         state: saveState(core),
         recording: recordingBuffer,
-        recordingName: path.basename(output)
+        recordingName: path.basename(output),
+        core
     }
 }
 
