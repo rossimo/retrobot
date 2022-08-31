@@ -71,7 +71,7 @@ export interface Recording {
     maxFramerate: number
     executedFrameCount: number
     frames: Promise<{ file: string, frameNumber: number }>[]
-    lastBuffer: Uint16Array
+    lastFrame: Frame
     lastRecordedBufferHash: any
     framesSinceRecord: number
     width: number
@@ -163,9 +163,9 @@ export const executeFrame = async (core: any, input: InputState = {}, recording:
                 await new Promise(res => setImmediate(res));
             }
 
-            frame.buffer = frame.buffer ? frame.buffer : recording?.lastBuffer;
+            frame.buffer = frame.buffer ? frame.buffer : recording?.lastFrame?.buffer;
 
-            recording.lastBuffer = frame.buffer;
+            recording.lastFrame = frame;
             const executedFrameCount = recording.executedFrameCount++;
 
             const bufferHash = await crc32(frame.buffer);
