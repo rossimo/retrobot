@@ -1,0 +1,5 @@
+{
+    "uid": "retrobot",
+    "script": "src/index.js",
+    "append": true
+}

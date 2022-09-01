@@ -5,7 +5,9 @@
   "author": "Ross Squires <ross.squires@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "start": "ts-node src/index.ts --expose-gc "
+    "start": "ts-node src/index.ts",
+    "service:start": "cross-env FOREVER_ROOT=./forever forever start service.json",
+    "service:stop": "cross-env FOREVER_ROOT=./forever forever stop retrobot"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
@@ -19,9 +21,11 @@
     "@types/shelljs": "^0.8.11",
     "@types/tmp": "^0.2.3",
     "@types/uuid": "^8.3.4",
+    "cross-env": "^7.0.3",
     "discord.js": "^14.3.0",
     "dotenv": "^16.0.1",
-    "fluent-ffmpeg": "^2.1.2",
+    "fluent-ffmpeg": "https://github.com/rossimo/node-fluent-ffmpeg",
+    "forever": "^4.0.3",
     "hash-wasm": "^4.9.0",
     "lodash": "^4.17.21",
     "lru-cache": "^7.14.0",
