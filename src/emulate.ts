@@ -9,7 +9,8 @@ import { values, first, size, last, isEqual } from 'lodash';
 import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
 
-import { executeFrame, InputState, loadRom as loadGame, loadState, Recording, saveState } from './util';
+import { executeFrame, InputState, loadRom as loadGame, loadState, Recording, rgb565toRaw, saveState } from './util';
+import sharp = require('sharp');
 
 tmp.setGracefulCleanup();
 
@@ -95,7 +96,7 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
         maxFramerate: av_info.timing_fps / RECORDING_FRAMERATE,
         executedFrameCount: 0,
         frames: [],
-        lastBuffer: new Uint16Array(),
+        lastFrame: undefined,
         lastRecordedBufferHash: null,
         framesSinceRecord: -1,
         width: av_info.geometry_base_width * 2,
@@ -158,11 +159,27 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
         await executeFrame(core, {}, recording, 20);
     }
 
-    const remainingFrames = MINIMUM_FRAMES - recording.executedFrameCount;
+    await executeFrame(core, {}, recording, 30);
 
-    if (remainingFrames > 0) {
-        await executeFrame(core, {}, recording, remainingFrames);
-    }
+    // push last frame
+    const { lastFrame } = recording;
+    const file = path.join(recording.tmpDir, `frame-${recording.executedFrameCount}.png`);
+    recording.frames.push(sharp(rgb565toRaw(lastFrame), {
+        raw: {
+            width: lastFrame.width,
+            height: lastFrame.height,
+            channels: 3
+        }
+    }).resize({
+        width: recording.width,
+        height: recording.height,
+        kernel: sharp.kernel.nearest
+    }).png({
+        quality: recording.quality
+    }).toFile(file).then(() => ({
+        file,
+        frameNumber: recording.executedFrameCount
+    })))
 
     const frames = await Promise.all(recording.frames);
 
