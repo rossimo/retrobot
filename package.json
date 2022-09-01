@@ -24,6 +24,7 @@
     "cross-env": "^7.0.3",
     "discord.js": "^14.3.0",
     "dotenv": "^16.0.1",
+    "fast-glob": "^3.2.11",
     "fluent-ffmpeg": "https://github.com/rossimo/node-fluent-ffmpeg",
     "forever": "^4.0.3",
     "hash-wasm": "^4.9.0",
