@@ -7,7 +7,7 @@ import { v4 as uuid } from 'uuid';
 import * as shelljs from 'shelljs';
 import * as LruCache from 'lru-cache';
 import { toLower, endsWith, range, uniq, split, first } from 'lodash';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, ComponentType, GatewayIntentBits, Interaction, Message, MessageType, TextChannel } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, ComponentType, GatewayIntentBits, Interaction, Message, PermissionsBitField, TextChannel } from 'discord.js';
 
 import { InputState } from './util';
 import { CoreType, emulate } from './emulate';
@@ -70,7 +70,7 @@ const main = async () => {
 
     client.on('messageCreate', async (message: Message) => {
         const attachment = message.attachments.find(att => !!ALL.find(ext => endsWith(toLower(att.name), ext)));
-        if (!attachment) {
+        if (!attachment || !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
             return;
         }
 
