@@ -14,12 +14,13 @@ import { CoreType, emulate } from './emulate';
 
 const NES = ['nes'];
 const SNES = ['sfc', 'smc'];
-const GB = ['gb', 'gbc', 'gba'];
+const GB = ['gb', 'gbc'];
+const GBA = ['gba'];
 
-const ALL = [...NES, ...SNES, ...GB];
+const ALL = [...NES, ...SNES, ...GB, ...GBA];
 
 const main = async () => {
-    const coreCache = new LruCache({ max: 100 });
+    const coreCache = new LruCache({ max: 150, ttl: 5 * 60 * 1000 });
     const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
     await client.login(process.env.DISCORD_TOKEN);
@@ -58,7 +59,7 @@ const main = async () => {
                     if (button?.disabled) {
                         const channel = client.channels.cache.get(message.channel.id) as TextChannel;
                         console.log(`unlocking ${info.game} in ${channel.name}`);
-                        await message.edit({ components: buttons(id, 1, true) });
+                        await message.edit({ components: buttons(info.coreType, id, 1, true) });
                     }
 
                     continue info;
@@ -68,18 +69,20 @@ const main = async () => {
     }
 
     client.on('messageCreate', async (message: Message) => {
-        const attachment = message.attachments.find(att => !!ALL.find(ext => endsWith(att.name, ext)));
+        const attachment = message.attachments.find(att => !!ALL.find(ext => endsWith(toLower(att.name), ext)));
         if (!attachment) {
             return;
         }
 
         let coreType: CoreType;
-        if (NES.find(ext => endsWith(attachment.name, ext))) {
+        if (NES.find(ext => endsWith(toLower(attachment.name), ext))) {
             coreType = CoreType.NES;
-        } else if (SNES.find(ext => endsWith(attachment.name, ext))) {
+        } else if (SNES.find(ext => endsWith(toLower(attachment.name), ext))) {
             coreType = CoreType.SNES;
-        } else if (GB.find(ext => endsWith(attachment.name, ext))) {
+        } else if (GB.find(ext => endsWith(toLower(attachment.name), ext))) {
             coreType = CoreType.GB;
+        } else if (GBA.find(ext => endsWith(toLower(attachment.name), ext))) {
+            coreType = CoreType.GBA;
         } else {
             return;
         }
@@ -115,7 +118,7 @@ const main = async () => {
                 attachment: recording,
                 name: recordingName
             }],
-            components: buttons(id, 1, true),
+            components: buttons(coreType, id, 1, true),
         });
     });
 
@@ -127,52 +130,58 @@ const main = async () => {
 
                 const [id, button, multiplier] = interaction.customId.split('-');
 
-                (async () => {
-                    try {
-                        if (isNumeric(button)) {
-                            await message.edit({ components: buttons(id, parseInt(button), true) });
-                        } else {
-                            await message.edit({ components: buttons(id, parseInt(multiplier), false, button) });
+                if (fs.existsSync(path.resolve('data', id))) {
+                    const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
+
+                    (async () => {
+                        try {
+                            if (isNumeric(button)) {
+                                await message.edit({ components: buttons(info.coreType, id, parseInt(button), true) });
+                            } else {
+                                await message.edit({ components: buttons(info.coreType, id, parseInt(multiplier), false, button) });
+                            }
+
+                            await interaction.update({});
+                        } catch (err) {
+                            console.error(err);
+                        }
+                    })()
+
+                    let playerInputs: InputState[] = [];
+
+                    if (isNumeric(button)) {
+                    } else {
+                        playerInputs = range(0, parseInt(multiplier)).map(() => parseInput(button));
+                    }
+
+                    if (playerInputs.length > 0) {
+                        const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
+                        let core = coreCache.get(id);
+                        coreCache.delete(id);
+
+                        let game;
+                        let oldState;
+                        if (!core) {
+                            game = fs.readFileSync(path.resolve('data', id, info.game))
+                            oldState = fs.readFileSync(path.resolve('data', id, 'state.sav'));
                         }
 
-                        await interaction.update({});
-                    } catch (err) {
-                        console.error(err);
+                        const { recording, recordingName, state: newState, core: newCore } = await emulate(info.coreType, game, oldState, playerInputs, core);
+                        coreCache.set(id, newCore);
+
+                        fs.writeFileSync(path.resolve('data', id, 'state.sav'), newState);
+
+                        await message.channel.send({
+                            content: `${player.nickname || player.displayName} pressed ${joyToWord(first(playerInputs))}...`,
+                            files: [{
+                                attachment: recording,
+                                name: recordingName
+                            }],
+                            components: buttons(info.coreType, id, 1, true)
+                        });
                     }
-                })()
-
-                let playerInputs: InputState[] = [];
-
-                if (isNumeric(button)) {
                 } else {
-                    playerInputs = range(0, parseInt(multiplier)).map(() => parseInput(button));
-                }
-
-                if (playerInputs.length > 0 && fs.existsSync(path.resolve('data', id))) {
-                    const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
-                    let core = coreCache.get(id);
-                    coreCache.delete(id);
-
-                    let game;
-                    let oldState;
-                    if (!core) {
-                        game = fs.readFileSync(path.resolve('data', id, info.game))
-                        oldState = fs.readFileSync(path.resolve('data', id, 'state.sav'));
-                    }
-
-                    const { recording, recordingName, state: newState, core: newCore } = await emulate(info.coreType, game, oldState, playerInputs, core);
-                    coreCache.set(id, newCore);
-
-                    fs.writeFileSync(path.resolve('data', id, 'state.sav'), newState);
-
-                    await message.channel.send({
-                        content: `${player.nickname || player.displayName} pressed ${joyToWord(first(playerInputs))}...`,
-                        files: [{
-                            attachment: recording,
-                            name: recordingName
-                        }],
-                        components: buttons(id, 1, true)
-                    });
+                    await interaction.update({ content: 'Cannot find save for this game' });
                 }
             } catch (err) {
                 console.error(err);
@@ -187,6 +196,14 @@ const parseInput = (input: string) => {
             return { A: true };
         case 'b':
             return { B: true };
+        case 'x':
+            return { X: true };
+        case 'y':
+            return { Y: true };
+        case 'l':
+            return { L: true };
+        case 'r':
+            return { R: true };
         case 'up':
             return { UP: true };
         case 'down':
@@ -206,7 +223,7 @@ const isNumeric = (value) => {
     return /^\d+$/.test(value);
 };
 
-const buttons = (id: string, multiplier: number = 1, enabled: boolean = true, highlight?: string) => {
+const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled: boolean = true, highlight?: string) => {
     const a = new ButtonBuilder()
         .setCustomId(id + '-' + 'a' + '-' + multiplier)
         .setEmoji('🇦')
@@ -218,6 +235,30 @@ const buttons = (id: string, multiplier: number = 1, enabled: boolean = true, hi
         .setEmoji('🇧')
         .setDisabled(!enabled)
         .setStyle(highlight == 'b' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const x = new ButtonBuilder()
+        .setCustomId(id + '-' + 'x' + '-' + multiplier)
+        .setEmoji('🇽')
+        .setDisabled(!enabled)
+        .setStyle(highlight == 'x' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const y = new ButtonBuilder()
+        .setCustomId(id + '-' + 'y' + '-' + multiplier)
+        .setEmoji('🇾')
+        .setDisabled(!enabled)
+        .setStyle(highlight == 'y' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const l = new ButtonBuilder()
+        .setCustomId(id + '-' + 'l' + '-' + multiplier)
+        .setEmoji('🇱')
+        .setDisabled(!enabled)
+        .setStyle(highlight == 'l' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const r = new ButtonBuilder()
+        .setCustomId(id + '-' + 'r' + '-' + multiplier)
+        .setEmoji('🇷')
+        .setDisabled(!enabled)
+        .setStyle(highlight == 'r' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const up = new ButtonBuilder()
         .setCustomId(id + '-' + 'up' + '-' + multiplier)
@@ -267,20 +308,81 @@ const buttons = (id: string, multiplier: number = 1, enabled: boolean = true, hi
         .setDisabled(!enabled)
         .setStyle(highlight == '10' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
-    return [
-        new ActionRowBuilder()
-            .addComponents(
-                a, b
-            ),
-        new ActionRowBuilder()
-            .addComponents(
-                up, down, left, right
-            ),
-        new ActionRowBuilder()
-            .addComponents(
-                select, start, multiply5, multiply10
-            )
-    ] as any[];
+    switch (coreType) {
+        case CoreType.GB:
+            return [
+                new ActionRowBuilder()
+                    .addComponents(
+                        a, b
+                    ),
+                new ActionRowBuilder()
+                    .addComponents(
+                        up, down, left, right
+                    ),
+                new ActionRowBuilder()
+                    .addComponents(
+                        select, start, multiply5, multiply10
+                    )
+            ] as any[];
+
+        case CoreType.GBA:
+            return [
+                new ActionRowBuilder()
+                    .addComponents(
+                        a, b
+                    ),
+                new ActionRowBuilder()
+                    .addComponents(
+                        up, down, left, right
+                    ),
+                new ActionRowBuilder()
+                    .addComponents(
+                        select, start, l, r
+                    ),
+                new ActionRowBuilder()
+                    .addComponents(
+                        multiply5, multiply10
+                    )
+            ] as any[];
+
+        case CoreType.NES:
+            return [
+                new ActionRowBuilder()
+                    .addComponents(
+                        a, b
+                    ),
+                new ActionRowBuilder()
+                    .addComponents(
+                        up, down, left, right
+                    ),
+                new ActionRowBuilder()
+                    .addComponents(
+                        select, start, multiply5, multiply10
+                    )
+            ] as any[];
+
+        case CoreType.SNES:
+            return [
+                new ActionRowBuilder()
+                    .addComponents(
+                        a, b, x, y
+                    ),
+                new ActionRowBuilder()
+                    .addComponents(
+                        up, down, left, right
+                    ),
+                new ActionRowBuilder()
+                    .addComponents(
+                        select, start, l, r
+                    ),
+                new ActionRowBuilder()
+                    .addComponents(
+                        multiply5, multiply10
+                    )
+            ] as any[];
+    }
+
+    return [];
 };
 
 const joyToWord = (input: InputState) => {

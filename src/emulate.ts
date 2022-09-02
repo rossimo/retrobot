@@ -38,7 +38,8 @@ const TEST_INPUTS: AutoplayInputState[] = [
 export enum CoreType {
     NES = 'nes',
     SNES = 'snes',
-    GB = 'gb'
+    GB = 'gb',
+    GBA = 'gba'
 }
 
 const NesCore = require('../cores/quicknes_libretro');
@@ -54,6 +55,7 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
             case CoreType.SNES:
                 core = await SnesCore();
                 break;
+            case CoreType.GBA:
             case CoreType.GB:
                 core = await GbCore();
                 break;

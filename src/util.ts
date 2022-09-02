@@ -61,6 +61,8 @@ export interface InputState {
     B?: boolean
     X?: boolean
     Y?: boolean
+    L?: boolean
+    R?: boolean
     SELECT?: boolean
     START?: boolean
 }
