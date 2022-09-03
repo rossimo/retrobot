@@ -1,12 +1,13 @@
 import 'dotenv/config';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as glob from 'fast-glob';
 import { request } from 'undici';
 import { v4 as uuid } from 'uuid';
 import * as shelljs from 'shelljs';
 import * as LruCache from 'lru-cache';
-import { toLower, endsWith, range } from 'lodash';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, GatewayIntentBits, Interaction, Message } from 'discord.js';
+import { toLower, endsWith, range, uniq, split, first } from 'lodash';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, ComponentType, GatewayIntentBits, Interaction, Message, MessageType, TextChannel } from 'discord.js';
 
 import { InputState } from './util';
 import { CoreType, emulate } from './emulate';
@@ -23,6 +24,48 @@ const main = async () => {
 
     await client.login(process.env.DISCORD_TOKEN);
     console.log('online');
+
+    const infoFiles = await glob('data/*/info.json');
+    const infos = infoFiles.map(infoFile => ({
+        id: infoFile.split(/[\\\/]/).at(-2),
+        ...(JSON.parse(fs.readFileSync(infoFile).toString()))
+    }));
+
+    const infoIds = uniq(infos.map(info => info.id));
+    const channelIds = uniq(infos.map(info => info.channelId));
+
+    let messages: Message[] = []
+
+    for (const channelId of channelIds) {
+        const channel = client.channels.cache.get(channelId) as TextChannel;
+        const messageCollection = await channel.messages.fetch({ limit: 100 });
+        messages = [...messages, ...messageCollection.values()];
+    }
+
+    messages = messages.sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+
+    info: for (const infoId of infoIds) {
+        for (const message of messages) {
+            if (message.author.id == client.user.id) {
+                const button = message.components.find(component => component.type == ComponentType.ActionRow)?.components
+                    ?.find(component => component.type == ComponentType.Button);
+
+                const id = first(split(button?.customId, '-'));
+
+                if (id == infoId) {
+                    const info = infos.find(info => info.id == id);
+
+                    if (button?.disabled) {
+                        const channel = client.channels.cache.get(message.channel.id) as TextChannel;
+                        console.log(`unlocking ${info.game} in ${channel.name}`);
+                        await message.edit({ components: buttons(id, 1, true) });
+                    }
+
+                    continue info;
+                }
+            }
+        }
+    }
 
     client.on('messageCreate', async (message: Message) => {
         const attachment = message.attachments.find(att => !!ALL.find(ext => endsWith(att.name, ext)));
@@ -78,50 +121,61 @@ const main = async () => {
 
     client.on('interactionCreate', async (interaction: Interaction<CacheType>) => {
         if (interaction.isButton()) {
-            const player = client.guilds.cache.get(interaction.guildId).members.cache.get(interaction.user.id);
-            const message = interaction.message;
+            try {
+                const player = client.guilds.cache.get(interaction.guildId).members.cache.get(interaction.user.id);
+                const message = interaction.message;
 
-            let update = new Promise(res => res({}));
+                const [id, button, multiplier] = interaction.customId.split('-');
 
-            const [id, button, multiplier] = interaction.customId.split('-');
+                (async () => {
+                    try {
+                        if (isNumeric(button)) {
+                            await message.edit({ components: buttons(id, parseInt(button), true) });
+                        } else {
+                            await message.edit({ components: buttons(id, parseInt(multiplier), false, button) });
+                        }
 
-            let playerInputs: InputState[] = [];
+                        await interaction.update({});
+                    } catch (err) {
+                        console.error(err);
+                    }
+                })()
 
-            if (isNumeric(button)) {
-                update = update.then(() => message.edit({ components: buttons(id, parseInt(button), true) }));
-            } else {
-                update = update.then(() => message.edit({ components: buttons(id, parseInt(multiplier), false, button) }));
-                playerInputs = range(0, parseInt(multiplier)).map(() => parseInput(button));
-            }
+                let playerInputs: InputState[] = [];
 
-            update = update.then(() => interaction.update({}));
-
-            update.catch(err => console.warn(err));
-
-            if (playerInputs.length > 0 && fs.existsSync(path.resolve('data', id))) {
-                const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
-                let core = coreCache.get(id);
-                coreCache.delete(id);
-
-                let game;
-                let oldState;
-                if (!core) {
-                    game = fs.readFileSync(path.resolve('data', id, info.game))
-                    oldState = fs.readFileSync(path.resolve('data', id, 'state.sav'));
+                if (isNumeric(button)) {
+                } else {
+                    playerInputs = range(0, parseInt(multiplier)).map(() => parseInput(button));
                 }
 
-                const { recording, recordingName, state: newState, core: newCore } = await emulate(info.coreType, game, oldState, playerInputs, core);
-                coreCache.set(id, newCore);
+                if (playerInputs.length > 0 && fs.existsSync(path.resolve('data', id))) {
+                    const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
+                    let core = coreCache.get(id);
+                    coreCache.delete(id);
 
-                fs.writeFileSync(path.resolve('data', id, 'state.sav'), newState);
+                    let game;
+                    let oldState;
+                    if (!core) {
+                        game = fs.readFileSync(path.resolve('data', id, info.game))
+                        oldState = fs.readFileSync(path.resolve('data', id, 'state.sav'));
+                    }
 
-                message.channel.send({
-                    files: [{
-                        attachment: recording,
-                        name: recordingName
-                    }],
-                    components: buttons(id, 1, true)
-                }).catch(err => console.warn(err));
+                    const { recording, recordingName, state: newState, core: newCore } = await emulate(info.coreType, game, oldState, playerInputs, core);
+                    coreCache.set(id, newCore);
+
+                    fs.writeFileSync(path.resolve('data', id, 'state.sav'), newState);
+
+                    await message.channel.send({
+                        content: `${player.nickname || player.displayName} pressed ${joyToWord(first(playerInputs))}...`,
+                        files: [{
+                            attachment: recording,
+                            name: recordingName
+                        }],
+                        components: buttons(id, 1, true)
+                    });
+                }
+            } catch (err) {
+                console.error(err);
             }
         }
     });
