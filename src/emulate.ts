@@ -111,8 +111,13 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
         const current = playerInputs[i];
         const next = playerInputs[i + 1];
 
-        if (isDirection(current) && (isEqual(current, next) || isEqual(current, prev))) {
-            await executeFrame(core, current, recording, 20);
+        if (isDirection(current)) {
+            if (isEqual(current, next) || isEqual(current, prev)) {
+                await executeFrame(core, current, recording, 20);
+            } else {
+                await executeFrame(core, current, recording, 16);
+                await executeFrame(core, {}, recording, 4);
+            }
         } else {
             await executeFrame(core, current, recording, 4);
             await executeFrame(core, {}, recording, 16);
