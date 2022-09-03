@@ -38,9 +38,13 @@ const main = async () => {
     let messages: Message[] = []
 
     for (const channelId of channelIds) {
-        const channel = client.channels.cache.get(channelId) as TextChannel;
-        const messageCollection = await channel.messages.fetch({ limit: 100 });
-        messages = [...messages, ...messageCollection.values()];
+        try {
+            const channel = client.channels.cache.get(channelId) as TextChannel;
+            const messageCollection = await channel.messages.fetch({ limit: 100 });
+            messages = [...messages, ...messageCollection.values()];
+        } catch (err) {
+            console.log(err);
+        }
     }
 
     messages = messages.sort((a, b) => b.createdTimestamp - a.createdTimestamp);
