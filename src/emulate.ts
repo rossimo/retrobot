@@ -93,8 +93,10 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
     core.retro_get_system_info(system_info);
     core.retro_get_system_av_info(av_info);
 
+    const tmpFrameDir = tmp.dirSync({ unsafeCleanup: true });
+
     const recording: Recording = {
-        tmpDir: tmp.dirSync().name,
+        tmpDir: tmpFrameDir.name,
         maxFramerate: av_info.timing_fps / RECORDING_FRAMERATE,
         executedFrameCount: 0,
         frames: [],
@@ -209,8 +211,8 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
     framesTxt += `duration 5\n`;
     framesTxt += `file '${last(frames).file}'\n`;
 
-    const { name: framesList } = tmp.fileSync();
-    fs.writeFileSync(framesList, framesTxt);
+    const tmpFramesList = tmp.fileSync({ discardDescriptor: true });
+    fs.writeFileSync(tmpFramesList.name, framesTxt);
 
     const { name: outputName } = tmp.fileSync();
     const gifOutput = `${outputName}.gif`;
@@ -219,7 +221,7 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
 
     await new Promise<void>((res, rej) =>
         ffmpeg()
-            .input(framesList)
+            .input(tmpFramesList.name)
             .addInputOption('-safe', '0')
             .inputFormat('concat')
             .addOption('-filter_complex', `split=2 [a][b]; [a] palettegen=reserve_transparent=off [pal]; [b] fifo [b]; [b] [pal] paletteuse`)
@@ -250,10 +252,11 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
 
     const recordingBuffer = fs.readFileSync(output);
 
-    shelljs.rm('-rf', framesList);
-    shelljs.rm('-rf', recording.tmpDir);
     shelljs.rm('-rf', gifOutput);
     shelljs.rm('-rf', mp4Output);
+
+    tmpFrameDir.removeCallback();
+    tmpFramesList.removeCallback();
 
     return {
         state: saveState(core),
