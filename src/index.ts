@@ -39,7 +39,7 @@ const main = async () => {
 
     for (const channelId of channelIds) {
         try {
-            const channel = await client.channels.fetch(channelId) as TextChannel;
+            const channel = client.channels.cache.get(channelId) as TextChannel;
             const messageCollection = await channel.messages.fetch({ limit: 100 });
             messages = [...messages, ...messageCollection.values()];
         } catch (err) {
