@@ -300,6 +300,12 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
         .setDisabled(!enabled)
         .setStyle(highlight == 'start' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
+    const multiply3 = new ButtonBuilder()
+        .setCustomId(id + '-' + '3' + '-' + multiplier)
+        .setEmoji('3️⃣')
+        .setDisabled(!enabled)
+        .setStyle(highlight == '3' ? ButtonStyle.Success : ButtonStyle.Secondary);
+
     const multiply5 = new ButtonBuilder()
         .setCustomId(id + '-' + '5' + '-' + multiplier)
         .setEmoji('5️⃣')
@@ -317,7 +323,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
             return [
                 new ActionRowBuilder()
                     .addComponents(
-                        a, b
+                        a, b, select, start,
                     ),
                 new ActionRowBuilder()
                     .addComponents(
@@ -325,7 +331,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        select, start, multiply5, multiply10
+                        multiply3, multiply5, multiply10
                     )
             ] as any[];
 
@@ -345,7 +351,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        multiply5, multiply10
+                        multiply3, multiply5, multiply10
                     )
             ] as any[];
 
@@ -353,7 +359,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
             return [
                 new ActionRowBuilder()
                     .addComponents(
-                        a, b
+                        a, b, select, start,
                     ),
                 new ActionRowBuilder()
                     .addComponents(
@@ -361,7 +367,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        select, start, multiply5, multiply10
+                        multiply3, multiply5, multiply10
                     )
             ] as any[];
 
@@ -381,7 +387,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        multiply5, multiply10
+                        multiply3, multiply5, multiply10
                     )
             ] as any[];
     }
