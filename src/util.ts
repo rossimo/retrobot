@@ -1,7 +1,6 @@
 import { crc32 } from 'hash-wasm';
 import * as path from 'path';
 import * as sharp from 'sharp';
-import { arraysEqual } from './utils';
 
 export const loadRom = (core: any, data: ArrayBufferLike) => {
     const pointer = core.asm.malloc(data.byteLength);
@@ -223,4 +222,26 @@ export const rgb565toRaw = ({ width, height, pitch, buffer }: Frame) => {
     }
 
     return raw;
+}
+
+export const arraysEqual = (a: Uint16Array, b: Uint16Array) => {
+    if (a?.length != b?.length) {
+        return false;
+    }
+
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+export const isDirection = (input?: InputState) => {
+    if (input?.UP) return true;
+    if (input?.DOWN) return true;
+    if (input?.LEFT) return true;
+    if (input?.RIGHT) return true;
+    return false;
 }

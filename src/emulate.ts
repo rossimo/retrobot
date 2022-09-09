@@ -9,7 +9,7 @@ import { values, first, size, last, isEqual } from 'lodash';
 import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
 
-import { executeFrame, InputState, loadRom as loadGame, loadState, Recording, rgb565toRaw, saveState } from './util';
+import { executeFrame, InputState, isDirection, loadRom as loadGame, loadState, Recording, rgb565toRaw, saveState } from './util';
 import sharp = require('sharp');
 
 tmp.setGracefulCleanup();
@@ -264,12 +264,4 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
         recordingName: path.basename(output),
         core
     }
-}
-
-const isDirection = (input?: InputState) => {
-    if (input?.UP) return true;
-    if (input?.DOWN) return true;
-    if (input?.LEFT) return true;
-    if (input?.RIGHT) return true;
-    return false;
 }
