@@ -37,6 +37,7 @@ export interface WorkerData {
     coreType: CoreType
     game: Buffer
     state: Buffer
+    gameHash?: string
 }
 
 const NesCore = require('../cores/quicknes_libretro');
@@ -46,9 +47,6 @@ const GbCore = require('../cores/mgba_libretro');
 let lastGbGameHash = '';
 let lastNesGameHash = '';
 let lastSnesGameHash = '';
-let lastGbStateHash = '';
-let lastNesStateHash = '';
-let lastSnesStateHash = '';
 
 const setup = (core: Core) => {
     core.retro_set_environment((cmd: number, data: any) => {
@@ -76,7 +74,7 @@ let snesCoreInit: Promise<Core>;
 let gbCoreInit: Promise<Core>;
 
 export default async (data: WorkerData) => {
-    const { coreType, input, duration, game, state } = data;
+    const { coreType, input, duration, game, state, gameHash } = data;
 
     let core: Core;
     switch (coreType) {
@@ -97,7 +95,10 @@ export default async (data: WorkerData) => {
             throw new Error(`Unknown core type: ${coreType}`);
     }
 
-    const incomingGameHash = await crc32(game);
+    const incomingGameHash = gameHash
+        ? gameHash
+        : await crc32(game);
+
     let lastGameHash = '';
 
     switch (coreType) {
@@ -137,25 +138,7 @@ export default async (data: WorkerData) => {
     const av_info: any = {};
     core.retro_get_system_av_info(av_info);
 
-    const incomingStateHash = await crc32(state);
-    let lastStateHash = '';
-
-    switch (coreType) {
-        case CoreType.NES:
-            lastStateHash = lastNesStateHash;
-            break;
-
-        case CoreType.SNES:
-            lastStateHash = lastSnesStateHash;
-            break;
-
-        case CoreType.GBA:
-        case CoreType.GB:
-            lastStateHash = lastGbStateHash;
-            break;
-    }
-
-    if (incomingStateHash != lastStateHash && state?.byteLength > 0) {
+    if (state?.byteLength > 0) {
         loadState(core, state);
     }
 
@@ -222,27 +205,11 @@ export default async (data: WorkerData) => {
 
     const newState = saveState(core);
 
-    const newStateHash = await crc32(newState);
-
-    switch (coreType) {
-        case CoreType.NES:
-            lastNesStateHash = newStateHash;
-            break;
-
-        case CoreType.SNES:
-            lastSnesStateHash = newStateHash;
-            break;
-
-        case CoreType.GBA:
-        case CoreType.GB:
-            lastGbStateHash = newStateHash;
-            break;
-    }
-
     const output = {
         av_info,
         frames,
         state: newState,
+        gameHash: incomingGameHash,
 
         get [Piscina.transferableSymbol]() {
             return [
@@ -255,7 +222,8 @@ export default async (data: WorkerData) => {
             return {
                 av_info,
                 frames,
-                state: newState
+                state: newState,
+                gameHash: incomingGameHash
             };
         }
     };

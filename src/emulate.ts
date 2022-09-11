@@ -66,7 +66,6 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         }
     }
 
-
     const endFrameCount = data.frames.length + 30 * 60;
     
     test: while (data.frames.length < endFrameCount) {
@@ -119,7 +118,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         data = await emulateParallel(pool, data, { input: {}, duration: 16 });
     }
 
-    //data = await emulateParallel(pool, data, { input: {}, duration: 30 });
+    data = await emulateParallel(pool, data, { input: {}, duration: 30 });
 
     const { frames } = data;
     const importantFrames: (Frame & { renderTime: number })[] = [];
