@@ -1,11 +1,12 @@
 import 'dotenv/config';
 import * as fs from 'fs';
+import Piscina from 'piscina';
 import * as path from 'path';
-import * as glob from 'fast-glob';
+import glob from 'fast-glob';
 import { request } from 'undici';
 import { v4 as uuid } from 'uuid';
 import * as shelljs from 'shelljs';
-import * as LruCache from 'lru-cache';
+import LruCache from 'lru-cache';
 import { toLower, endsWith, range, uniq, split, first } from 'lodash';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, ComponentType, GatewayIntentBits, Interaction, Message, PermissionsBitField, TextChannel } from 'discord.js';
 
@@ -18,6 +19,12 @@ const GB = ['gb', 'gbc'];
 const GBA = ['gba'];
 
 const ALL = [...NES, ...SNES, ...GB, ...GBA];
+
+const pool = new Piscina({
+    filename: path.resolve(__dirname, path.resolve(__dirname, 'worker.ts')),
+    name: 'default',
+    execArgv: ['-r', 'ts-node/register']
+});
 
 const main = async () => {
     const coreCache = new LruCache({ max: 150, ttl: 5 * 60 * 1000 });
@@ -33,7 +40,7 @@ const main = async () => {
     }));
 
     const infoIds = uniq(infos.map(info => info.id));
-    const channelIds = uniq(infos.map(info => info.channelId));
+    const channelIds: string[] = uniq(infos.map(info => info.channelId));
 
     let messages: Message[] = []
 
@@ -112,7 +119,7 @@ const main = async () => {
         const infoFile = path.join(data, 'info.json');
         fs.writeFileSync(infoFile, JSON.stringify(info, null, 4));
 
-        const { recording, recordingName, state } = await emulate(coreType, buffer, null, []);
+        const { recording, recordingName, state } = await emulate(pool, coreType, buffer, null, []);
 
         const stateFile = path.join(data, 'state.sav');
         fs.writeFileSync(stateFile, state);
@@ -160,18 +167,11 @@ const main = async () => {
 
                     if (playerInputs.length > 0) {
                         const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
-                        let core = coreCache.get(id);
-                        coreCache.delete(id);
 
-                        let game;
-                        let oldState;
-                        if (!core) {
-                            game = fs.readFileSync(path.resolve('data', id, info.game))
-                            oldState = fs.readFileSync(path.resolve('data', id, 'state.sav'));
-                        }
+                        let game = fs.readFileSync(path.resolve('data', id, info.game))
+                        let oldState = fs.readFileSync(path.resolve('data', id, 'state.sav'));
 
-                        const { recording, recordingName, state: newState, core: newCore } = await emulate(info.coreType, game, oldState, playerInputs, core);
-                        coreCache.set(id, newCore);
+                        const { recording, recordingName, state: newState } = await emulate(pool, info.coreType, game, oldState, playerInputs);
 
                         fs.writeFileSync(path.resolve('data', id, 'state.sav'), newState);
 

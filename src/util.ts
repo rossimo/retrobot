@@ -1,6 +1,6 @@
 import { crc32 } from 'hash-wasm';
 import * as path from 'path';
-import * as sharp from 'sharp';
+import sharp from 'sharp';
 
 export const loadRom = (core: any, data: ArrayBufferLike) => {
     const pointer = core.asm.malloc(data.byteLength);

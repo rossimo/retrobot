@@ -2,15 +2,18 @@ import 'dotenv/config';
 import * as fs from 'fs';
 import * as tmp from 'tmp';
 import * as path from 'path';
+import Piscina from 'piscina';
 import { crc32 } from 'hash-wasm';
 import * as shelljs from 'shelljs';
-import * as ffmpeg from 'fluent-ffmpeg';
+import ffmpeg from 'fluent-ffmpeg';
 import { values, first, size, last, isEqual } from 'lodash';
 import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
 
-import { executeFrame, InputState, isDirection, loadRom as loadGame, loadState, Recording, rgb565toRaw, saveState } from './util';
+import { arraysEqual, executeFrame, InputState, isDirection, loadRom as loadGame, loadState, Recording, rgb565toRaw, saveState } from './util';
 import sharp = require('sharp');
+import { emulateParallel } from './workerInterface';
+import { Frame } from './worker';
 
 tmp.setGracefulCleanup();
 
@@ -42,71 +45,8 @@ export enum CoreType {
     GBA = 'gba'
 }
 
-const NesCore = require('../cores/quicknes_libretro');
-const SnesCore = require('../cores/snes9x2010_libretro');
-const GbCore = require('../cores/mgba_libretro');
-
-export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: ArrayBufferLike, playerInputs: InputState[], core?: any) => {
-    if (!core) {
-        switch (coreType) {
-            case CoreType.NES:
-                core = await NesCore();
-                break;
-            case CoreType.SNES:
-                core = await SnesCore();
-                break;
-            case CoreType.GBA:
-            case CoreType.GB:
-                core = await GbCore();
-                break;
-            default:
-                throw new Error(`Unknow core type: ${coreType}`);
-        }
-
-        core.retro_set_environment((cmd: number, data: any) => {
-            if (cmd == 3) {
-                core.HEAPU8[data] = 1;
-                return true;
-            }
-
-            if (cmd == (51 | 0x10000)) {
-                return true;
-            }
-
-            if (cmd == 10) {
-                return true;
-            }
-
-            return false;
-        });
-
-        loadGame(core, game);
-
-        if (state) {
-            loadState(core, state);
-        }
-    }
-
-    const system_info = {};
-    const av_info: any = {};
-
-    core.retro_get_system_info(system_info);
-    core.retro_get_system_av_info(av_info);
-
-    const tmpFrameDir = tmp.dirSync({ unsafeCleanup: true });
-
-    const recording: Recording = {
-        tmpDir: tmpFrameDir.name,
-        maxFramerate: av_info.timing_fps / RECORDING_FRAMERATE,
-        executedFrameCount: 0,
-        frames: [],
-        lastFrame: undefined,
-        lastRecordedBufferHash: null,
-        framesSinceRecord: -1,
-        width: av_info.geometry_base_width * 2,
-        height: av_info.geometry_base_height * 2,
-        quality: 100
-    };
+export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Array, state: Uint8Array, playerInputs: InputState[]) => {
+    let data = { coreType, game, state, frames: [], av_info: {} as any };
 
     for (let i = 0; i < playerInputs.length; i++) {
         const prev = playerInputs[i - 1];
@@ -115,17 +55,18 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
 
         if (isDirection(current)) {
             if (isEqual(current, next) || isEqual(current, prev)) {
-                await executeFrame(core, current, recording, 20);
+                data = await emulateParallel(pool, data, { input: current, duration: 20 });
             } else {
-                await executeFrame(core, current, recording, 4);
-                await executeFrame(core, {}, recording, 16);
+                data = await emulateParallel(pool, data, { input: current, duration: 4 });
+                data = await emulateParallel(pool, data, { input: {}, duration: 16 });
             }
         } else {
-            await executeFrame(core, current, recording, 4);
-            await executeFrame(core, {}, recording, 16);
+            data = await emulateParallel(pool, data, { input: current, duration: 4 });
+            data = await emulateParallel(pool, data, { input: {}, duration: 16 });
         }
     }
 
+    /*
     const endFrameCount = recording.executedFrameCount + 30 * 60;
     test: while (recording.executedFrameCount < endFrameCount) {
         await executeFrame(core, {}, recording, 32);
@@ -167,49 +108,80 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
         await executeFrame(core, autoplay, recording, 4);
         await executeFrame(core, {}, recording, 20);
     }
+*/
+    data = await emulateParallel(pool, data, { input: {}, duration: 30 });
 
-    await executeFrame(core, {}, recording, 30);
+    const { frames } = data;
+    const importantFrames: (Frame & { renderTime: number })[] = [];
+    let lastFrame: Frame;
+    let durationSinceFrame = 0;
+    for (let i = 0; i < frames.length; i++) {
+        if (i == 0 || durationSinceFrame >= (60 / RECORDING_FRAMERATE)) {
+            const currentFrame = frames[i];
 
-    // push last frame
-    const { lastFrame } = recording;
-    const file = path.join(recording.tmpDir, `frame-${recording.executedFrameCount}.png`);
-    recording.frames.push(sharp(rgb565toRaw(lastFrame), {
-        raw: {
-            width: lastFrame.width,
-            height: lastFrame.height,
-            channels: 3
+            if (!arraysEqual(currentFrame.buffer, lastFrame?.buffer)) {
+                importantFrames.push({
+                    ...currentFrame,
+                    renderTime: i
+                })
+
+                lastFrame = currentFrame;
+                durationSinceFrame = 0;
+            }
+        } else {
+            durationSinceFrame++;
         }
-    }).resize({
-        width: recording.width,
-        height: recording.height,
-        kernel: sharp.kernel.nearest
-    }).png({
-        quality: recording.quality
-    }).toFile(file).then(() => ({
-        file,
-        frameNumber: recording.executedFrameCount
-    })))
+    }
 
-    const frames = await Promise.all(recording.frames);
+    if (!arraysEqual(last(importantFrames).buffer, lastFrame.buffer)) {
+        importantFrames.push({
+            ...last(importantFrames),
+            renderTime: frames.length
+        })
+    }
+
+    const tmpFrameDir = tmp.dirSync({ unsafeCleanup: true });
+
+    const pngs = await Promise.all(importantFrames.map((frame) => {
+        const file = path.join(tmpFrameDir.name, `frame-${frame.renderTime}.png`);
+
+        return sharp(rgb565toRaw(frame), {
+            raw: {
+                width: frame.width,
+                height: frame.height,
+                channels: 3
+            }
+        }).resize({
+            width: data.av_info.geometry_base_width * 2,
+            height: data.av_info.geometry_base_height * 2,
+            kernel: sharp.kernel.nearest
+        }).png({
+            quality: 100
+        }).toFile(file).then(() => ({
+            file,
+            frameNumber: frame.renderTime
+        }))
+    }))
+
 
     shelljs.mkdir('-p', 'output');
 
     let framesTxt = '';
-    for (let i = 0; i < frames.length; i++) {
-        const current = frames[i];
+    for (let i = 0; i < pngs.length; i++) {
+        const current = pngs[i];
 
         framesTxt += `file '${current.file}'\n`;
 
-        const next = frames[i + 1];
+        const next = pngs[i + 1];
         if (next) {
             framesTxt += `duration ${(next.frameNumber - current.frameNumber) / 60}\n`;
         }
     }
 
     framesTxt += `duration ${1 / 60}\n`;
-    framesTxt += `file '${last(frames).file}'\n`;
+    framesTxt += `file '${last(pngs).file}'\n`;
     framesTxt += `duration 5\n`;
-    framesTxt += `file '${last(frames).file}'\n`;
+    framesTxt += `file '${last(pngs).file}'\n`;
 
     const tmpFramesList = tmp.fileSync({ discardDescriptor: true });
     fs.writeFileSync(tmpFramesList.name, framesTxt);
@@ -259,9 +231,8 @@ export const emulate = async (coreType: CoreType, game: ArrayBufferLike, state: 
     tmpFramesList.removeCallback();
 
     return {
-        state: saveState(core),
+        state: data.state,
         recording: recordingBuffer,
-        recordingName: path.basename(output),
-        core
+        recordingName: path.basename(output)
     }
 }
