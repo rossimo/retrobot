@@ -115,7 +115,7 @@ export default async (data: WorkerData) => {
             break;
     }
 
-    if (incomingGameHash != lastGameHash) {
+    if (incomingGameHash != lastGameHash || state?.byteLength == 0) {
         loadRom(core, game);
 
         switch (coreType) {
@@ -155,7 +155,7 @@ export default async (data: WorkerData) => {
             break;
     }
 
-    if (incomingStateHash != lastStateHash) {
+    if (incomingStateHash != lastStateHash && state?.byteLength > 0) {
         loadState(core, state);
     }
 
