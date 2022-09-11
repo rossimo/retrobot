@@ -6,6 +6,7 @@ import Piscina from 'piscina';
 import { crc32 } from 'hash-wasm';
 import * as shelljs from 'shelljs';
 import ffmpeg from 'fluent-ffmpeg';
+import { performance } from 'perf_hooks';
 import { values, first, size, last, isEqual } from 'lodash';
 import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
 import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
@@ -30,8 +31,6 @@ interface AutoplayInputState extends InputState {
 const TEST_INPUTS: AutoplayInputState[] = [
     { A: true, autoplay: true },
     { B: true, autoplay: false },
-    // { START: true },
-    // { SELECT: true },
     { DOWN: true, autoplay: true },
     { UP: true, autoplay: true },
     { LEFT: true, autoplay: true },
@@ -47,6 +46,8 @@ export enum CoreType {
 
 export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Array, state: Uint8Array, playerInputs: InputState[]) => {
     let data = { coreType, game, state, frames: [], av_info: {} as any };
+
+    const startEmulation = performance.now();
 
     for (let i = 0; i < playerInputs.length; i++) {
         const prev = playerInputs[i - 1];
@@ -124,6 +125,12 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
 
     data = await emulateParallel(pool, data, { input: {}, duration: 30 });
 
+
+    const endEmulation = performance.now();
+    console.log(`Emulation: ${endEmulation - startEmulation}`);
+
+    const startEncode = performance.now();
+
     const { frames } = data;
     const importantFrames: (Frame & { renderTime: number })[] = [];
     let lastFrame: Frame;
@@ -168,8 +175,6 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             width: data.av_info.geometry_base_width * 2,
             height: data.av_info.geometry_base_height * 2,
             kernel: sharp.kernel.nearest
-        }).png({
-            quality: 100
         }).toFile(file).then(() => ({
             file,
             frameNumber: frame.renderTime
@@ -242,6 +247,9 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
 
     tmpFrameDir.removeCallback();
     tmpFramesList.removeCallback();
+
+    const endEncode = performance.now();
+    console.log(`Encoding: ${endEncode - startEncode}`);
 
     return {
         state: data.state,
