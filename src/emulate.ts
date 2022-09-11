@@ -129,7 +129,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
     const endEmulation = performance.now();
     console.log(`Emulation: ${endEmulation - startEmulation}`);
 
-    const startEncode = performance.now();
+    const startFrames = performance.now();
 
     const { frames } = data;
     const importantFrames: (Frame & { renderTime: number })[] = [];
@@ -181,8 +181,10 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         }))
     }))
 
+    const endFrames = performance.now();
+    console.log(`Exporting frames: ${endFrames - startFrames}`);
 
-    shelljs.mkdir('-p', 'output');
+    const startEncode = performance.now();
 
     let framesTxt = '';
     for (let i = 0; i < pngs.length; i++) {
