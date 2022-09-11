@@ -21,10 +21,10 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 
 const RECORDING_FRAMERATE = 20;
-const MINIMUM_FRAMES = 60;
 
 interface AutoplayInputState extends InputState {
     autoplay?: boolean
+    data?: any
 }
 
 const TEST_INPUTS: AutoplayInputState[] = [
@@ -67,17 +67,18 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
     }
 
     const endFrameCount = data.frames.length + 30 * 60;
-    
+
     test: while (data.frames.length < endFrameCount) {
         data = await emulateParallel(pool, data, { input: {}, duration: 32 });
 
         const state = new Uint8Array(data.state);
 
         const possibilities: { [hash: string]: AutoplayInputState } = {};
+        const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
 
-        const controlResult = await crc32(last((await emulateParallel(pool, data, { input: {}, duration: 20 })).frames).buffer);
+        const controlResultHash = controlResultTask.then(result => crc32(last(result.frames).buffer));
 
-        const tasks = TEST_INPUTS.map(testInput => async () => {
+        await Promise.all(TEST_INPUTS.map(testInput => async () => {
             if (size(possibilities) > 1) {
                 return;
             }
@@ -88,21 +89,25 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
                 return;
             }
 
-            const testResult = await crc32(last((await emulateParallel(pool, testData, { input: {}, duration: 16 })).frames).buffer);
+            const testResult = await emulateParallel(pool, testData, { input: {}, duration: 16 });
             if (size(possibilities) > 1) {
                 return;
             }
 
-            if (controlResult != testResult) {
-                if (possibilities[testResult] && testInput.autoplay) {
-                    possibilities[testResult] = testInput;
-                } else if (!possibilities[testResult]) {
-                    possibilities[testResult] = testInput;
+            const testResultHash = await crc32(last(testResult.frames).buffer);
+            if (size(possibilities) > 1) {
+                return;
+            }
+
+            if ((await controlResultHash) != testResultHash) {
+                if (!possibilities[testResultHash] || (possibilities[testResultHash] && testInput.autoplay)) {
+                    possibilities[testResultHash] = {
+                        ...testInput,
+                        data: testResult
+                    };
                 }
             }
-        });
-
-        await Promise.all(tasks.map(task => task()));
+        }).map(task => task()));
 
         if (size(possibilities) > 1) {
             break test;
@@ -110,12 +115,11 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
 
         const possibleAutoplay = first(values(possibilities));
 
-        const autoplay = size(possibilities) == 1 && possibleAutoplay.autoplay
-            ? possibleAutoplay
-            : {};
-
-        data = await emulateParallel(pool, data, { input: autoplay, duration: 4 });
-        data = await emulateParallel(pool, data, { input: {}, duration: 16 });
+        if (size(possibilities) == 1 && possibleAutoplay.autoplay) {
+            data = possibleAutoplay.data;
+        } else {
+            data = await controlResultTask;
+        }
     }
 
     data = await emulateParallel(pool, data, { input: {}, duration: 30 });
