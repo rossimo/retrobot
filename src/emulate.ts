@@ -65,23 +65,31 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
                         .then(next => emulateParallel(pool, next, { input: {}, duration: 16 })),
                     emulateParallel(pool, data, { input: current, duration: 16 })
                         .then(next => emulateParallel(pool, next, { input: {}, duration: 4 }))]);
-
+                /*
                 const { width, height } = last(idle.frames);
 
                 const idleBuffer = rgb565toRaw(last(idle.frames));
                 const shortBuffer = rgb565toRaw(last(short.frames));
                 const longBuffer = rgb565toRaw(last(long.frames));
 
-                const shortDiff = pixelmatch(idleBuffer, shortBuffer, null, width, height) / (width * height);
-                const longDiff = pixelmatch(idleBuffer, longBuffer, null, width, height) / (width * height);
+                const idleToShort = pixelmatch(idleBuffer, shortBuffer, null, width, height) / (width * height);
+                const idleToLong = pixelmatch(idleBuffer, longBuffer, null, width, height) / (width * height);
+                const shortToLong = pixelmatch(shortBuffer, longBuffer, null, width, height) / (width * height);
 
-                if (Math.abs(shortDiff - longDiff) > 0.001) {
-                    data = longDiff > shortDiff
+                console.log(`Idle to Short: ${idleToShort}`);
+                console.log(`Idle to Long: ${idleToLong}`);
+                console.log(`Short to Long: ${shortToLong}`)
+
+                if (Math.abs(shortToLong) > 0) {
+                    data = Math.abs(idleToShort - idleToLong) > 0.0005
                         ? long
                         : short;
                 } else {
                     data = short;
                 }
+                */
+
+                data = short;
             }
         } else {
             data = await emulateParallel(pool, data, { input: current, duration: 4 });
