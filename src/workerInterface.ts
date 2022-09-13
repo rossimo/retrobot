@@ -32,7 +32,7 @@ export const emulateParallel = async (pool: Piscina, data: { coreType: CoreType,
         coreType,
         game,
         state: result.state,
-        frames: [...frames, ...result.frames] as Frame[],
+        frames: [...frames, ...result.frames],
         av_info: result.av_info,
         gameHash: result.gameHash
     };

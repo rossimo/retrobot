@@ -6,7 +6,6 @@ import Piscina from 'piscina';
 import { crc32 } from 'hash-wasm';
 import * as shelljs from 'shelljs';
 import ffmpeg from 'fluent-ffmpeg';
-import pixelmatch from 'pixelmatch';
 import { performance } from 'perf_hooks';
 import { values, first, size, last, isEqual } from 'lodash';
 import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
@@ -59,29 +58,8 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             if (isEqual(current, next) || isEqual(current, prev)) {
                 data = await emulateParallel(pool, data, { input: current, duration: 20 });
             } else {
-                const [idle, short, long] = await Promise.all([
-                    emulateParallel(pool, data, { input: {}, duration: 20 }),
-                    emulateParallel(pool, data, { input: current, duration: 4 })
-                        .then(next => emulateParallel(pool, next, { input: {}, duration: 16 })),
-                    emulateParallel(pool, data, { input: current, duration: 16 })
-                        .then(next => emulateParallel(pool, next, { input: {}, duration: 4 }))]);
-
-                const { width, height } = last(idle.frames);
-
-                const idleBuffer = rgb565toRaw(last(idle.frames));
-                const shortBuffer = rgb565toRaw(last(short.frames));
-                const longBuffer = rgb565toRaw(last(long.frames));
-
-                const shortDiff = pixelmatch(idleBuffer, shortBuffer, null, width, height) / (width * height);
-                const longDiff = pixelmatch(idleBuffer, longBuffer, null, width, height) / (width * height);
-
-                if (Math.abs(shortDiff - longDiff) > 0.001) {
-                    data = longDiff > shortDiff
-                        ? long
-                        : short;
-                } else {
-                    data = short;
-                }
+                data = await emulateParallel(pool, data, { input: current, duration: 4 });
+                data = await emulateParallel(pool, data, { input: {}, duration: 16 });
             }
         } else {
             data = await emulateParallel(pool, data, { input: current, duration: 4 });
@@ -190,7 +168,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             raw: {
                 width: frame.width,
                 height: frame.height,
-                channels: 4
+                channels: 3
             }
         }).resize({
             width: data.av_info.geometry_base_width * 2,

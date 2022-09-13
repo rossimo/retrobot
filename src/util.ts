@@ -185,7 +185,7 @@ export const executeFrame = async (core: any, input: InputState = {}, recording:
                 raw: {
                     width: frame.width,
                     height: frame.height,
-                    channels: 4
+                    channels: 3
                 }
             }).resize({
                 width: recording.width,
@@ -204,7 +204,7 @@ export const executeFrame = async (core: any, input: InputState = {}, recording:
 }
 
 export const rgb565toRaw = ({ width, height, pitch, buffer }: Frame) => {
-    const raw = new Uint8Array(width * height * 4);
+    const raw = new Uint8Array(width * height * 3);
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -214,11 +214,10 @@ export const rgb565toRaw = ({ width, height, pitch, buffer }: Frame) => {
             const g = (pixel >> 3) & 0xFC;
             const b = (pixel) << 3;
 
-            const i = (x + width * y) * 4;
+            const i = (x + width * y) * 3;
             raw[i] = r;
             raw[i + 1] = g;
             raw[i + 2] = b;
-            raw[i + 3] = 255;
         }
     }
 
