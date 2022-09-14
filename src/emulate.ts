@@ -58,8 +58,8 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             if (isEqual(current, next) || isEqual(current, prev)) {
                 data = await emulateParallel(pool, data, { input: current, duration: 20 });
             } else {
-                data = await emulateParallel(pool, data, { input: current, duration: 4 });
-                data = await emulateParallel(pool, data, { input: {}, duration: 16 });
+                data = await emulateParallel(pool, data, { input: current, duration: 8 });
+                data = await emulateParallel(pool, data, { input: {}, duration: 8 });
             }
         } else {
             data = await emulateParallel(pool, data, { input: current, duration: 4 });
