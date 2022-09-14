@@ -215,7 +215,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             .input(tmpFramesList.name)
             .addInputOption('-safe', '0')
             .inputFormat('concat')
-            .addOption('-filter_complex', `split=2 [a][b]; [a] palettegen=reserve_transparent=off [pal]; [b] fifo [b]; [b] [pal] paletteuse=dither=bayer:bayer_scale=5`)
+            .addOption('-filter_complex', `split=2 [a][b]; [a] palettegen=reserve_transparent=off [pal]; [b] fifo [b]; [b] [pal] paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`)
             .output(gifOutput)
             .on('error', (err, stdout, stderr) => {
                 console.log(stdout)
