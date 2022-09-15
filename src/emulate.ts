@@ -31,10 +31,10 @@ interface AutoplayInputState extends InputState {
 const TEST_INPUTS: AutoplayInputState[] = [
     { A: true, autoplay: true },
     { B: true, autoplay: false },
-    { DOWN: true, autoplay: true },
-    { UP: true, autoplay: true },
-    { LEFT: true, autoplay: true },
-    { RIGHT: true, autoplay: true }
+    { DOWN: true, autoplay: false },
+    { UP: true, autoplay: false },
+    { LEFT: true, autoplay: false },
+    { RIGHT: true, autoplay: false }
 ];
 
 export enum CoreType {
