@@ -1,4 +1,4 @@
-[![](https://dcbadge.vercel.app/api/server/INVITEID)](https://discord.gg/dbcnjr9tp9)
+[![](https://dcbadge.vercel.app/api/server/dbcnjr9tp9)](https://discord.gg/dbcnjr9tp9)
 
 # Retrobot
 
