@@ -30,7 +30,7 @@ Then invite the bot to a server with the following URL. Be sure to update the OA
 https://discord.com/api/oauth2/authorize?client_id=YOUR_OAUTH_CLIENT_ID_HERE&permissions=68608&scope=bot
 ```
 
-Once the bot is joined your Discord server, drop an uncompressed ROM file into a channel. The bot will automatically find the ROM file, and begin emulation.
+Once the bot is joined your Discord server, drop an uncompressed ROM file into a channel. The bot will automatically find the ROM file, and begin emulation. Note: only server "administrators" can start new games.
 
 ## Techinical Notes
 Retrobot is built on [`libretro`](https://github.com/libretro/libretro-common), the code that powers [RetroArch](https://www.retroarch.com/). Several `libretro` cores have been cross-compiled to WASM to be used in [Node.js](https://www.retroarch.com/). Since WASM modules have independent memory spaces, it means several cores of the same type can be instanced. This allows parallelism.
