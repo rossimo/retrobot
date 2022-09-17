@@ -7,9 +7,6 @@ RUN npm install --global yarn cross-env forever
 
 COPY . .
 
-RUN yarn install
-RUN yarn cache clean
+RUN yarn install && yarn cache clean
 
-ENV FOREVER_ROOT="./forever"
-
-CMD ["forever", "src/index.js"]
+CMD ["yarn", "start"]
