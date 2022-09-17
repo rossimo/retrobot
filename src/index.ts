@@ -166,6 +166,9 @@ const main = async () => {
                     }
 
                     if (playerInputs.length > 0) {
+
+                        message.channel.sendTyping();
+
                         const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
 
                         let game = fs.readFileSync(path.resolve('data', id, info.game))
