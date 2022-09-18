@@ -70,41 +70,26 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
     const endFrameCount = data.frames.length + 30 * 60;
 
     test: while (data.frames.length < endFrameCount) {
-        data = await emulateParallel(pool, data, { input: {}, duration: 32 });
-
-        const state = new Uint8Array(data.state);
-
         const possibilities: { [hash: string]: AutoplayInputState } = {};
-        const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
 
-        const controlResultHash = controlResultTask.then(result => crc32(last(result.frames).buffer));
+        const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
+        const controlHashTask = controlResultTask.then(result => crc32(last(result.frames).buffer));
 
         await Promise.all(TEST_INPUTS.map(testInput => async () => {
             if (size(possibilities) > 1) {
                 return;
             }
 
-            let testData = { ...data, state };
-            testData = await emulateParallel(pool, testData, { input: testInput, duration: 4 });
-            if (size(possibilities) > 1) {
-                return;
-            }
+            const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 });
+            const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 });
 
-            const testResult = await emulateParallel(pool, testData, { input: {}, duration: 16 });
-            if (size(possibilities) > 1) {
-                return;
-            }
+            const testHash = await crc32(last(testIdleData.frames).buffer);
 
-            const testResultHash = await crc32(last(testResult.frames).buffer);
-            if (size(possibilities) > 1) {
-                return;
-            }
-
-            if ((await controlResultHash) != testResultHash) {
-                if (!possibilities[testResultHash] || (possibilities[testResultHash] && testInput.autoplay)) {
-                    possibilities[testResultHash] = {
+            if ((await controlHashTask) != testHash) {
+                if (!possibilities[testHash] || (possibilities[testHash] && testInput.autoplay)) {
+                    possibilities[testHash] = {
                         ...testInput,
-                        data: testResult
+                        data: testIdleData
                     };
                 }
             }
@@ -121,6 +106,8 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         } else {
             data = await controlResultTask;
         }
+
+        data = await emulateParallel(pool, data, { input: {}, duration: 32 });
     }
 
     data = await emulateParallel(pool, data, { input: {}, duration: 30 });
