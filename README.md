@@ -12,7 +12,9 @@ Retrobot simplifies control by auto-forwarding through idle parts of games, such
 Additionally, numbered buttons are added to automatically repeat button presses. This is useful for walking in a specific direction for a long period.
 
 ## How to Use
-Create a bot in the [Discord Developer Portal](https://discord.com/developers/applications), and obtain a token for your bot.
+Create a bot in the [Discord Developer Portal](https://discord.com/developers/applications), and obtain a token for your bot. Also, ensure "Message Content Intent" is enabled for your bot.
+
+![Message Content Intent screenshot](permissions.png)
 
 Create a file name exactly `.env` in your clone of this repository with the following contents:
 ```
