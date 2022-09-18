@@ -11,3 +11,4 @@ frames.txt
 .env
 data
 forever
+docker-compose.yml

@@ -1,0 +1,9 @@
+version: '3'
+services:
+  retrobot:
+    volumes:
+      - ./data:/srv/data
+    build: .
+    restart: unless-stopped
+    environment:
+      DISCORD_TOKEN: YOUR DISCORD TOKEN HERE

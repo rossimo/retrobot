@@ -43,6 +43,16 @@ And to stop:
 ```
 yarn service:stop
 ```
+
+## Running via Docker Compose
+
+Requires Docker and Docker Compose is installed on the machine.
+
+- Rename `docker-compose.yml.example` to `docker-compose.yml`
+- Edit `docker-compose.yml` and your Discord bot token.
+- Run `docker-compose build`
+- Run `docker-compose up -d`
+
 ## Technical Notes
 Retrobot is built on [`libretro`](https://github.com/libretro/libretro-common), the code that powers [RetroArch](https://www.retroarch.com/). Several `libretro` cores have been cross-compiled to WASM to be used in [Node.js](https://www.retroarch.com/). Since WASM modules have independent memory spaces, it means several cores of the same type can be instanced. This allows parallelism.
 
