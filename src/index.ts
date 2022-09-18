@@ -179,7 +179,7 @@ const main = async () => {
                         fs.writeFileSync(path.resolve('data', id, 'state.sav'), newState);
 
                         await message.channel.send({
-                            content: `${player.nickname || player.displayName} pressed ${joyToWord(first(playerInputs))}${parseInt(multiplier) > 1 ? ' x' + multiplier : ''}...`,
+                            content: `${player.nickname || player.displayName} pressed ${joyToWord(first(playerInputs))}${parseInt(multiplier) > 1 ? ' x' + multiplier : ''} <t:${Math.trunc(new Date().getTime() / 1000)}:R>`,
                             files: [{
                                 attachment: recording,
                                 name: recordingName
