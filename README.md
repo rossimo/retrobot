@@ -34,3 +34,9 @@ Once the bot has joined your Discord server, drop an uncompressed ROM file into 
 
 ## Technical Notes
 Retrobot is built on [`libretro`](https://github.com/libretro/libretro-common), the code that powers [RetroArch](https://www.retroarch.com/). Several `libretro` cores have been cross-compiled to WASM to be used in [Node.js](https://www.retroarch.com/). Since WASM modules have independent memory spaces, it means several cores of the same type can be instanced. This allows parallelism.
+
+## License
+The bot source code here is licensed as MIT. The `libretro` core each have their own licenses.
+* mGBA - https://github.com/libretro/mgba/blob/master/LICENSE
+* QuickNES - https://github.com/libretro/QuickNES_Core/blob/master/LICENSE
+* snes9x2010 - https://github.com/libretro/snes9x2010/blob/master/LICENSE.txt
