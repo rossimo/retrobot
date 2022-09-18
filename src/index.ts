@@ -401,6 +401,10 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
 const joyToWord = (input: InputState) => {
     if (input.A) return 'A';
     if (input.B) return 'B';
+    if (input.X) return 'X';
+    if (input.Y) return 'Y';
+    if (input.L) return 'L';
+    if (input.R) return 'R';
     if (input.UP) return 'Up';
     if (input.DOWN) return 'Down';
     if (input.LEFT) return 'Left';
