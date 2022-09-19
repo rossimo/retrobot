@@ -6,9 +6,12 @@ import glob from 'fast-glob';
 import { request } from 'undici';
 import { v4 as uuid } from 'uuid';
 import * as shelljs from 'shelljs';
-import LruCache from 'lru-cache';
 import { toLower, endsWith, range, uniq, split, first } from 'lodash';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, ComponentType, GatewayIntentBits, Interaction, Message, PermissionsBitField, TextChannel } from 'discord.js';
+import {
+    ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, SelectMenuBuilder,
+    ComponentType, MessageActionRowComponentBuilder, GatewayIntentBits, Interaction, Message,
+    PermissionsBitField, TextChannel, MessageOptions
+} from 'discord.js';
 
 import { InputState } from './util';
 import { CoreType, emulate } from './emulate';
@@ -27,7 +30,6 @@ const pool = new Piscina({
 });
 
 const main = async () => {
-    const coreCache = new LruCache({ max: 150, ttl: 5 * 60 * 1000 });
     const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
     await client.login(process.env.DISCORD_TOKEN);
@@ -141,7 +143,13 @@ const main = async () => {
 
                 const [id, button, multiplier] = interaction.customId.split('-');
 
-                if (fs.existsSync(path.resolve('data', id))) {
+                if (button == 'settings') {
+                    await interaction.update({});
+
+                    for (const setting of settingsForm(id)) {
+                        await message.channel.send(setting);
+                    }
+                } else if (fs.existsSync(path.resolve('data', id))) {
                     const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
 
                     (async () => {
@@ -177,6 +185,7 @@ const main = async () => {
                         const { recording, recordingName, state: newState } = await emulate(pool, info.coreType, game, oldState, playerInputs);
 
                         fs.writeFileSync(path.resolve('data', id, 'state.sav'), newState);
+
 
                         await message.channel.send({
                             content: `${player.nickname || player.displayName} pressed ${joyToWord(first(playerInputs))}${parseInt(multiplier) > 1 ? ' x' + multiplier : ''}...`,
@@ -321,6 +330,12 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
         .setDisabled(!enabled)
         .setStyle(highlight == '10' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
+    const settings = new ButtonBuilder()
+        .setCustomId(id + '-' + 'settings')
+        .setEmoji('🔧')
+        .setDisabled(!enabled)
+        .setStyle(ButtonStyle.Secondary);
+
     switch (coreType) {
         case CoreType.GB:
             return [
@@ -334,7 +349,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        multiply3, multiply5, multiply10
+                        multiply3, multiply5, multiply10, settings
                     )
             ] as any[];
 
@@ -354,7 +369,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        multiply3, multiply5, multiply10
+                        multiply3, multiply5, multiply10, settings
                     )
             ] as any[];
 
@@ -370,7 +385,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        multiply3, multiply5, multiply10
+                        multiply3, multiply5, multiply10, settings
                     )
             ] as any[];
 
@@ -390,13 +405,50 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        multiply3, multiply5, multiply10
+                        multiply3, multiply5, multiply10, settings
                     )
             ] as any[];
     }
 
     return [];
 };
+
+const settingsForm = (id: string): MessageOptions[] => ([
+    {
+        content: 'Input Assist',
+        components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
+            .addComponents(new SelectMenuBuilder()
+                .setCustomId(`config-${id}-input_assist`)
+                .setOptions({
+                    label: 'Autoplay',
+                    value: 'confirm',
+                    default: true
+                }, {
+                    label: 'Wait',
+                    value: 'wait'
+                }, {
+                    label: 'Off',
+                    value: 'off'
+                }))]
+    },
+    {
+        content: 'Input Assist Confirm Speed',
+        components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
+            .addComponents(new SelectMenuBuilder()
+                .setCustomId(`config-${id}-input_assist_speed`)
+                .setOptions({
+                    label: 'Fast',
+                    value: 'fast'
+                }, {
+                    label: 'Normal',
+                    value: 'normal',
+                    default: true
+                }, {
+                    label: 'Slow',
+                    value: 'slow'
+                }))]
+    }
+]);
 
 const joyToWord = (input: InputState) => {
     if (input.A) return 'A';
