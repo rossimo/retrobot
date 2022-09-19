@@ -34,7 +34,8 @@ const TEST_INPUTS: AutoplayInputState[] = [
     { DOWN: true, autoplay: false },
     { UP: true, autoplay: false },
     { LEFT: true, autoplay: false },
-    { RIGHT: true, autoplay: false }
+    { RIGHT: true, autoplay: false },
+    { SELECT: true, autoplay: false }
 ];
 
 export enum CoreType {
