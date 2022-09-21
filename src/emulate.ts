@@ -108,7 +108,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             data = await controlResultTask;
         }
 
-        data = await emulateParallel(pool, data, { input: {}, duration: 36 });
+        data = await emulateParallel(pool, data, { input: {}, duration: 32 });
     }
 
     data = await emulateParallel(pool, data, { input: {}, duration: 30 });
