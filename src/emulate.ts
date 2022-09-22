@@ -97,6 +97,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         }).map(task => task()));
 
         if (size(possibilities) > 1) {
+            data = await emulateParallel(pool, await controlResultTask, { input: {}, duration: 20 });
             break test;
         }
 
@@ -138,9 +139,9 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         }
     }
 
-    if (!arraysEqual(last(importantFrames).buffer, lastFrame.buffer)) {
+    if (!arraysEqual(last(frames).buffer, lastFrame.buffer)) {
         importantFrames.push({
-            ...last(importantFrames),
+            ...last(frames),
             renderTime: frames.length
         })
     }
