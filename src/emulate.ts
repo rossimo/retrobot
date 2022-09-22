@@ -201,7 +201,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             .input(tmpFramesList.name)
             .addInputOption('-safe', '0')
             .inputFormat('concat')
-            .addOption('-filter_complex', `scale=2*iw:2*ih:flags=neighbor,split=2 [a][b]; [a] palettegen=stats_mode=diff [pal]; [b] fifo [b]; [b] [pal] paletteuse=dither=bayer:bayer_scale=5`)
+            .addOption('-filter_complex', `scale=2*iw:2*ih:flags=neighbor,split=2 [a][b]; [a] palettegen=${coreType == CoreType.SNES ? 'stats_mode=diff' : ''} [pal]; [b] fifo [b]; [b] [pal] paletteuse=dither=bayer:bayer_scale=5`)
             .output(gifOutput)
             .on('error', (err, stdout, stderr) => {
                 console.log(stdout)
