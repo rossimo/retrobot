@@ -98,6 +98,8 @@ const main = async () => {
             return;
         }
 
+        message.channel.sendTyping();
+
         const { body } = await request(attachment.url);
         const buffer = Buffer.from(await body.arrayBuffer());
 
