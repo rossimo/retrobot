@@ -73,7 +73,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
     test: while (data.frames.length < endFrameCount) {
         const possibilities: { [hash: string]: AutoplayInputState } = {};
 
-        const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 16 })
+        const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
         const controlHashTask = controlResultTask.then(result => crc32(last(result.frames).buffer));
 
         await Promise.all(TEST_INPUTS.map(testInput => async () => {
@@ -82,7 +82,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             }
 
             const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 });
-            const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 12 });
+            const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 });
 
             const testHash = await crc32(last(testIdleData.frames).buffer);
 
@@ -108,10 +108,8 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             data = await controlResultTask;
         }
 
-        data = await emulateParallel(pool, data, { input: {}, duration: 32 });
+        data = await emulateParallel(pool, data, { input: {}, duration: 60 });
     }
-
-    data = await emulateParallel(pool, data, { input: {}, duration: 30 });
 
     const endEmulation = performance.now();
     console.log(`Emulation: ${endEmulation - startEmulation}`);
