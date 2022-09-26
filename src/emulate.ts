@@ -5,6 +5,7 @@ import * as path from 'path';
 import Piscina from 'piscina';
 import encode from 'image-encode';
 import { crc32 } from 'hash-wasm';
+import EventEmitter from 'events';
 import * as shelljs from 'shelljs';
 import ffmpeg from 'fluent-ffmpeg';
 import { performance } from 'perf_hooks';
@@ -75,29 +76,40 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
 
         const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
         const controlHashTask = controlResultTask.then(result => crc32(last(result.frames).buffer));
+        const abort = new EventEmitter();
 
         await Promise.all(TEST_INPUTS.map(testInput => async () => {
-            if (size(possibilities) > 1) {
-                return;
-            }
+            try {
+                if (size(possibilities) > 1) {
+                    return;
+                }
 
-            const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 });
-            const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 });
+                const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 }, abort);
+                const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 }, abort);
 
-            const testHash = await crc32(last(testIdleData.frames).buffer);
+                const testHash = await crc32(last(testIdleData.frames).buffer);
 
-            if ((await controlHashTask) != testHash) {
-                if (!possibilities[testHash] || (possibilities[testHash] && testInput.autoplay)) {
-                    possibilities[testHash] = {
-                        ...testInput,
-                        data: testIdleData
-                    };
+                if ((await controlHashTask) != testHash) {
+                    if (!possibilities[testHash] || (possibilities[testHash] && testInput.autoplay)) {
+                        possibilities[testHash] = {
+                            ...testInput,
+                            data: testIdleData
+                        };
+                    }
+
+                    if (size(possibilities) > 1) {
+                        abort.emit('abort');
+                    }
+                }
+            } catch (err) {
+                if (err.name != 'AbortError') {
+                    throw err;
                 }
             }
         }).map(task => task()));
 
         if (size(possibilities) > 1) {
-            data = await emulateParallel(pool, await controlResultTask, { input: {}, duration: 20 });
+            data = await emulateParallel(pool, data, { input: {}, duration: 20 });
             break test;
         }
 
@@ -154,7 +166,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         const file = path.join(tmpFrameDir.name, `frame-${frame.renderTime}.bmp`);
 
         return new Promise<{ file: string, frameNumber: number }>((res, rej) =>
-            fs.writeFile(file, Buffer.from(encode(rgb565toRaw(frame), [width, height],'bmp')), (err) => {
+            fs.writeFile(file, Buffer.from(encode(rgb565toRaw(frame), [width, height], 'bmp')), (err) => {
                 if (err) {
                     rej(err)
                 } else {
