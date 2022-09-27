@@ -4,7 +4,7 @@ import * as tmp from 'tmp';
 import * as path from 'path';
 import Piscina from 'piscina';
 import encode from 'image-encode';
-import { crc32 } from 'hash-wasm';
+import { crc32c } from 'hash-wasm';
 import EventEmitter from 'events';
 import * as shelljs from 'shelljs';
 import ffmpeg from 'fluent-ffmpeg';
@@ -75,7 +75,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         const possibilities: { [hash: string]: AutoplayInputState } = {};
 
         const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
-        const controlHashTask = controlResultTask.then(result => crc32(last(result.frames).buffer));
+        const controlHashTask = controlResultTask.then(result => crc32c(last(result.frames).buffer));
         const abort = new EventEmitter();
 
         await Promise.all(TEST_INPUTS.map(testInput => async () => {
@@ -87,7 +87,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
                 const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 }, abort);
                 const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 }, abort);
 
-                const testHash = await crc32(last(testIdleData.frames).buffer);
+                const testHash = await crc32c(last(testIdleData.frames).buffer);
 
                 if ((await controlHashTask) != testHash) {
                     if (!possibilities[testHash] || (possibilities[testHash] && testInput.autoplay)) {

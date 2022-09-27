@@ -1,6 +1,6 @@
 import Piscina from 'piscina';
 import { CoreType } from './emulate';
-import { crc32 } from 'hash-wasm';
+import { crc32c } from 'hash-wasm';
 import { InputState, loadRom, loadState, saveState } from './util';
 
 export const RETRO_DEVICE_ID_JOYPAD_B = 0;
@@ -102,7 +102,7 @@ export default async (data: WorkerData) => {
 
     const incomingGameHash = gameHash
         ? gameHash
-        : await crc32(game);
+        : await crc32c(game);
 
     let lastGameHash = '';
 
@@ -146,7 +146,7 @@ export default async (data: WorkerData) => {
     {
         const incomingStateHash = stateHash
             ? stateHash
-            : await crc32(state);
+            : await crc32c(state);
 
         let lastStateHash: string;
         switch (coreType) {
@@ -231,7 +231,7 @@ export default async (data: WorkerData) => {
     }
 
     const newState = saveState(core);
-    const newStateHash = await crc32(newState);
+    const newStateHash = await crc32c(newState);
 
     switch (coreType) {
         case CoreType.NES:
