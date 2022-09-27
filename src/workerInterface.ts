@@ -6,8 +6,8 @@ import { InputState } from './util';
 import { CoreType } from './emulate';
 import { Frame } from './worker';
 
-export const emulateParallel = async (pool: Piscina, data: { coreType: CoreType, game: Uint8Array, state: Uint8Array, frames: Frame[], gameHash?: string }, options: { input: InputState, duration: number }, signal?: EventEmitter) => {
-    let { coreType, game, state, frames, gameHash } = data;
+export const emulateParallel = async (pool: Piscina, data: { coreType: CoreType, game: Uint8Array, state: Uint8Array, frames: Frame[], gameHash?: string, stateHash?: string }, options: { input: InputState, duration: number }, signal?: EventEmitter) => {
+    let { coreType, game, state, frames, gameHash, stateHash } = data;
     let { input, duration } = options;
 
     let gameCopy = new Uint8Array(game);
@@ -20,7 +20,8 @@ export const emulateParallel = async (pool: Piscina, data: { coreType: CoreType,
             duration,
             game: gameCopy,
             state: stateCopy,
-            gameHash
+            gameHash,
+            stateHash
         },
         {
             transferList: [
@@ -36,6 +37,7 @@ export const emulateParallel = async (pool: Piscina, data: { coreType: CoreType,
         state: result.state,
         frames: [...frames, ...result.frames],
         av_info: result.av_info,
-        gameHash: result.gameHash
+        gameHash: result.gameHash,
+        stateHash: result.stateHash
     };
 }
