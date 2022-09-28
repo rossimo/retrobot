@@ -717,7 +717,7 @@ enum retro_mod
                                             * Gets an interface which is used by a libretro core to set
                                             * state of rumble motors in controllers.
                                             * A strong and weak motor is supported, and they can be
-                                            * controlled indepedently.
+                                            * controlled independently.
                                             * Should be called from either retro_init() or retro_load_game().
                                             * Should not be called from retro_set_environment().
                                             * Returns false if rumble functionality is unavailable.
@@ -2813,7 +2813,7 @@ struct retro_hw_render_callback
  * character is the text character of the pressed key. (UTF-32).
  * key_modifiers is a set of RETROKMOD values or'ed together.
  *
- * The pressed/keycode state can be indepedent of the character.
+ * The pressed/keycode state can be independent of the character.
  * It is also possible that multiple characters are generated from a
  * single keypress.
  * Keycode events should be treated separately from character events.
