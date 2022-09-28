@@ -1039,7 +1039,7 @@ enum retro_mod
                                             * VFS presence needs to be queried prior to load_game or any
                                             * get_system/save/other_directory being called to let front end know
                                             * core supports VFS before it starts handing out paths.
-                                            * It is recomended to do so in retro_set_environment
+                                            * It is recommended to do so in retro_set_environment
                                             */
 #define RETRO_ENVIRONMENT_GET_LED_INTERFACE (46 | RETRO_ENVIRONMENT_EXPERIMENTAL)
                                            /* struct retro_led_interface * --
