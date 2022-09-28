@@ -702,7 +702,7 @@ enum retro_mod
                                             * to write audio. The audio callbacks must be called from within the
                                             * notification callback.
                                             * The amount of audio data to write is up to the implementation.
-                                            * Generally, the audio callback will be called continously in a loop.
+                                            * Generally, the audio callback will be called continuously in a loop.
                                             *
                                             * Due to thread safety guarantees and lack of sync between audio and
                                             * video, a frontend  can selectively disallow this interface based on
