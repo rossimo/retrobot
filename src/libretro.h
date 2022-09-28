@@ -2614,7 +2614,7 @@ struct retro_rumble_interface
 typedef void (RETRO_CALLCONV *retro_audio_callback_t)(void);
 
 /* True: Audio driver in frontend is active, and callback is
- * expected to be called regularily.
+ * expected to be called regularly.
  * False: Audio driver in frontend is paused or inactive.
  * Audio callback will not be called until set_state has been
  * called with true.
