@@ -2104,7 +2104,7 @@ struct retro_memory_descriptor
     * 'AR'+blank - valid ('R' is not in 0-9A-F)
     * 'ARB'+blank - valid (the B can't be part of the address either, because
     *                      there is no namespace 'AR')
-    * blank+'B' - not valid, because it's ambigous which address space B1234
+    * blank+'B' - not valid, because it's ambiguous which address space B1234
     *             would refer to.
     * The length can't be used for that purpose; the frontend may want
     * to append arbitrary data to an address, without a separator. */
