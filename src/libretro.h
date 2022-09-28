@@ -1101,7 +1101,7 @@ enum retro_mod
 #define RETRO_ENVIRONMENT_GET_TARGET_REFRESH_RATE (50 | RETRO_ENVIRONMENT_EXPERIMENTAL)
                                             /* float * --
                                             * Float value that lets us know what target refresh rate
-                                            * is curently in use by the frontend.
+                                            * is currently in use by the frontend.
                                             *
                                             * The core can use the returned value to set an ideal
                                             * refresh rate/framerate.
