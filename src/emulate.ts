@@ -76,34 +76,23 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
 
         const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
         const controlHashTask = controlResultTask.then(result => crc32c(last(result.frames).buffer));
-        const abort = new EventEmitter();
 
         await Promise.all(TEST_INPUTS.map(testInput => async () => {
-            try {
-                if (size(possibilities) > 1) {
-                    return;
-                }
+            if (size(possibilities) > 1) {
+                return;
+            }
 
-                const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 }, abort);
-                const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 }, abort);
+            const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 });
+            const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 });
 
-                const testHash = await crc32c(last(testIdleData.frames).buffer);
+            const testHash = await crc32c(last(testIdleData.frames).buffer);
 
-                if ((await controlHashTask) != testHash) {
-                    if (!possibilities[testHash] || (possibilities[testHash] && testInput.autoplay)) {
-                        possibilities[testHash] = {
-                            ...testInput,
-                            data: testIdleData
-                        };
-                    }
-
-                    if (size(possibilities) > 1) {
-                        abort.emit('abort');
-                    }
-                }
-            } catch (err) {
-                if (err.name != 'AbortError') {
-                    throw err;
+            if ((await controlHashTask) != testHash) {
+                if (!possibilities[testHash] || (possibilities[testHash] && testInput.autoplay)) {
+                    possibilities[testHash] = {
+                        ...testInput,
+                        data: testIdleData
+                    };
                 }
             }
         }).map(task => task()));

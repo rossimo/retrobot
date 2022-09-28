@@ -53,6 +53,8 @@ let lastGbStateHash = '';
 let lastNesStateHash = '';
 let lastSnesStateHash = '';
 
+console.log('init')
+
 const setup = (core: Core) => {
     core.retro_set_environment((cmd: number, data: any) => {
         if (cmd == 3) {
@@ -169,58 +171,60 @@ export default async (data: WorkerData) => {
         }
     }
 
+    core.retro_set_input_state((port: number, device: number, index: number, id: number) => {
+        if (id == RETRO_DEVICE_ID_JOYPAD_MASK) {
+            let mask = 0;
+
+            if (input.A)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_A;
+
+            if (input.B)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_B;
+
+            if (input.X)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_X;
+
+            if (input.Y)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_Y;
+
+            if (input.SELECT)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_SELECT;
+
+            if (input.START)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_START;
+
+            if (input.UP)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_UP;
+
+            if (input.DOWN)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_DOWN;
+
+            if (input.LEFT)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_LEFT;
+
+            if (input.RIGHT)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_RIGHT;
+
+            return mask;
+        }
+
+        return 0;
+    });
+
+    let callback: (frame: Frame) => void;
+    core.retro_set_video_refresh((data: number, width: number, height: number, pitch: number) => {
+        callback({
+            buffer: data
+                ? new Uint16Array(core.HEAPU16.subarray(data / 2, (data + pitch * height) / 2))
+                : null,
+            width,
+            height,
+            pitch
+        });
+    });
+
     const executeFrame = () => new Promise<Frame>((res) => {
-        core.retro_set_input_state((port: number, device: number, index: number, id: number) => {
-            if (id == RETRO_DEVICE_ID_JOYPAD_MASK) {
-                let mask = 0;
-
-                if (input.A)
-                    mask |= 1 << RETRO_DEVICE_ID_JOYPAD_A;
-
-                if (input.B)
-                    mask |= 1 << RETRO_DEVICE_ID_JOYPAD_B;
-
-                if (input.X)
-                    mask |= 1 << RETRO_DEVICE_ID_JOYPAD_X;
-
-                if (input.Y)
-                    mask |= 1 << RETRO_DEVICE_ID_JOYPAD_Y;
-
-                if (input.SELECT)
-                    mask |= 1 << RETRO_DEVICE_ID_JOYPAD_SELECT;
-
-                if (input.START)
-                    mask |= 1 << RETRO_DEVICE_ID_JOYPAD_START;
-
-                if (input.UP)
-                    mask |= 1 << RETRO_DEVICE_ID_JOYPAD_UP;
-
-                if (input.DOWN)
-                    mask |= 1 << RETRO_DEVICE_ID_JOYPAD_DOWN;
-
-                if (input.LEFT)
-                    mask |= 1 << RETRO_DEVICE_ID_JOYPAD_LEFT;
-
-                if (input.RIGHT)
-                    mask |= 1 << RETRO_DEVICE_ID_JOYPAD_RIGHT;
-
-                return mask;
-            }
-
-            return 0;
-        });
-
-        core.retro_set_video_refresh((data: number, width: number, height: number, pitch: number) => {
-            res({
-                buffer: data
-                    ? new Uint16Array(core.HEAPU16.subarray(data / 2, (data + pitch * height) / 2))
-                    : null,
-                width,
-                height,
-                pitch
-            })
-        });
-
+        callback = res;
         core.retro_run();
     });
 

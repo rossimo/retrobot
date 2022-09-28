@@ -3,6 +3,7 @@ node_modules
 *.mp4
 *.png
 *.gb
+*.gba
 *.sfc
 *.smc
 *.sav
