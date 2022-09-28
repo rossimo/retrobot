@@ -3754,7 +3754,7 @@ typedef bool (RETRO_CALLCONV *retro_environment_t)(unsigned cmd, void *data);
  * unless changed (see RETRO_ENVIRONMENT_SET_PIXEL_FORMAT).
  *
  * Width and height specify dimensions of buffer.
- * Pitch specifices length in bytes between two lines in buffer.
+ * Pitch specifies length in bytes between two lines in buffer.
  *
  * For performance reasons, it is highly recommended to have a frame
  * that is packed in memory, i.e. pitch == width * byte_per_pixel.
