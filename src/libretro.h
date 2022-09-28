@@ -1846,7 +1846,7 @@ typedef int64_t (RETRO_CALLCONV *retro_vfs_read_t)(struct retro_vfs_file_handle 
  * Introduced in VFS API v1 */
 typedef int64_t (RETRO_CALLCONV *retro_vfs_write_t)(struct retro_vfs_file_handle *stream, const void *s, uint64_t len);
 
-/* Flush pending writes to file, if using buffered IO. Returns 0 on sucess, or -1 on failure.
+/* Flush pending writes to file, if using buffered IO. Returns 0 on success, or -1 on failure.
  * Introduced in VFS API v1 */
 typedef int (RETRO_CALLCONV *retro_vfs_flush_t)(struct retro_vfs_file_handle *stream);
 
