@@ -886,7 +886,7 @@ enum retro_mod
                                             * Some emulators such as Super Nintendo support multiple lightgun
                                             * types which must be specifically selected from. It is therefore
                                             * sometimes necessary for a frontend to be able to tell the core
-                                            * about a special kind of input device which is not specifcally
+                                            * about a special kind of input device which is not specifically
                                             * provided by the Libretro API.
                                             *
                                             * In order for a frontend to understand the workings of those devices,
