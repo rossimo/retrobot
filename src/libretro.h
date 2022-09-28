@@ -1858,7 +1858,7 @@ typedef int (RETRO_CALLCONV *retro_vfs_remove_t)(const char *path);
  * Introduced in VFS API v1 */
 typedef int (RETRO_CALLCONV *retro_vfs_rename_t)(const char *old_path, const char *new_path);
 
-/* Stat the specified file. Retruns a bitmask of RETRO_VFS_STAT_* flags, none are set if path was not valid.
+/* Stat the specified file. Returns a bitmask of RETRO_VFS_STAT_* flags, none are set if path was not valid.
  * Additionally stores file size in given variable, unless NULL is given.
  * Introduced in VFS API v3 */
 typedef int (RETRO_CALLCONV *retro_vfs_stat_t)(const char *path, int32_t *size);
