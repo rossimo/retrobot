@@ -1,4 +1,3 @@
-import { crc32 } from 'hash-wasm';
 import * as path from 'path';
 
 export const loadRom = (core: any, data: ArrayBufferLike) => {

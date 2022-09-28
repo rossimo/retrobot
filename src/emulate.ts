@@ -4,7 +4,8 @@ import * as tmp from 'tmp';
 import * as path from 'path';
 import Piscina from 'piscina';
 import encode from 'image-encode';
-import { crc32 } from 'hash-wasm';
+import { crc32c } from 'hash-wasm';
+import EventEmitter from 'events';
 import * as shelljs from 'shelljs';
 import ffmpeg from 'fluent-ffmpeg';
 import { performance } from 'perf_hooks';
@@ -74,7 +75,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         const possibilities: { [hash: string]: AutoplayInputState } = {};
 
         const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
-        const controlHashTask = controlResultTask.then(result => crc32(last(result.frames).buffer));
+        const controlHashTask = controlResultTask.then(result => crc32c(last(result.frames).buffer));
 
         await Promise.all(TEST_INPUTS.map(testInput => async () => {
             if (size(possibilities) > 1) {
@@ -84,7 +85,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 });
             const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 });
 
-            const testHash = await crc32(last(testIdleData.frames).buffer);
+            const testHash = await crc32c(last(testIdleData.frames).buffer);
 
             if ((await controlHashTask) != testHash) {
                 if (!possibilities[testHash] || (possibilities[testHash] && testInput.autoplay)) {
@@ -97,6 +98,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         }).map(task => task()));
 
         if (size(possibilities) > 1) {
+            data = await emulateParallel(pool, data, { input: {}, duration: 20 });
             break test;
         }
 
@@ -108,10 +110,8 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             data = await controlResultTask;
         }
 
-        data = await emulateParallel(pool, data, { input: {}, duration: 32 });
+        data = await emulateParallel(pool, data, { input: {}, duration: 60 });
     }
-
-    data = await emulateParallel(pool, data, { input: {}, duration: 30 });
 
     const endEmulation = performance.now();
     console.log(`Emulation: ${endEmulation - startEmulation}`);
@@ -140,9 +140,9 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         }
     }
 
-    if (!arraysEqual(last(importantFrames).buffer, lastFrame.buffer)) {
+    if (!arraysEqual(last(frames).buffer, lastFrame.buffer)) {
         importantFrames.push({
-            ...last(importantFrames),
+            ...last(frames),
             renderTime: frames.length
         })
     }
@@ -155,7 +155,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         const file = path.join(tmpFrameDir.name, `frame-${frame.renderTime}.bmp`);
 
         return new Promise<{ file: string, frameNumber: number }>((res, rej) =>
-            fs.writeFile(file, Buffer.from(encode(rgb565toRaw(frame), [width, height],'bmp')), (err) => {
+            fs.writeFile(file, Buffer.from(encode(rgb565toRaw(frame), [width, height], 'bmp')), (err) => {
                 if (err) {
                     rej(err)
                 } else {
@@ -202,7 +202,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             .input(tmpFramesList.name)
             .addInputOption('-safe', '0')
             .inputFormat('concat')
-            .addOption('-filter_complex', `scale=2*iw:2*ih:flags=neighbor,split=2 [a][b]; [a] palettegen=reserve_transparent=off [pal]; [b] fifo [b]; [b] [pal] paletteuse=dither=bayer:bayer_scale=5`)
+            .addOption('-filter_complex', `scale=2*iw:2*ih:flags=neighbor,split=2 [a][b]; [a] palettegen=${coreType == CoreType.SNES ? 'stats_mode=diff' : ''} [pal]; [b] fifo [b]; [b] [pal] paletteuse=dither=bayer:bayer_scale=5`)
             .output(gifOutput)
             .on('error', (err, stdout, stderr) => {
                 console.log(stdout)
