@@ -3244,7 +3244,7 @@ struct retro_system_content_info_override
     *         2) the basename of the content file inside the
     *            compressed file, without extension
     *         In either case, a core should consider 'name' to
-    *         be the canonical name/ID of the the content file
+    *         be the canonical name/ID of the content file
     *       - retro_game_info_ext::ext is guaranteed to contain the
     *         extension of the content file inside the compressed file,
     *         in lower case format
