@@ -702,7 +702,7 @@ enum retro_mod
                                             * to write audio. The audio callbacks must be called from within the
                                             * notification callback.
                                             * The amount of audio data to write is up to the implementation.
-                                            * Generally, the audio callback will be called continously in a loop.
+                                            * Generally, the audio callback will be called continuously in a loop.
                                             *
                                             * Due to thread safety guarantees and lack of sync between audio and
                                             * video, a frontend  can selectively disallow this interface based on
@@ -717,7 +717,7 @@ enum retro_mod
                                             * Gets an interface which is used by a libretro core to set
                                             * state of rumble motors in controllers.
                                             * A strong and weak motor is supported, and they can be
-                                            * controlled indepedently.
+                                            * controlled independently.
                                             * Should be called from either retro_init() or retro_load_game().
                                             * Should not be called from retro_set_environment().
                                             * Returns false if rumble functionality is unavailable.
@@ -886,7 +886,7 @@ enum retro_mod
                                             * Some emulators such as Super Nintendo support multiple lightgun
                                             * types which must be specifically selected from. It is therefore
                                             * sometimes necessary for a frontend to be able to tell the core
-                                            * about a special kind of input device which is not specifcally
+                                            * about a special kind of input device which is not specifically
                                             * provided by the Libretro API.
                                             *
                                             * In order for a frontend to understand the workings of those devices,
@@ -1039,7 +1039,7 @@ enum retro_mod
                                             * VFS presence needs to be queried prior to load_game or any
                                             * get_system/save/other_directory being called to let front end know
                                             * core supports VFS before it starts handing out paths.
-                                            * It is recomended to do so in retro_set_environment
+                                            * It is recommended to do so in retro_set_environment
                                             */
 #define RETRO_ENVIRONMENT_GET_LED_INTERFACE (46 | RETRO_ENVIRONMENT_EXPERIMENTAL)
                                            /* struct retro_led_interface * --
@@ -1101,7 +1101,7 @@ enum retro_mod
 #define RETRO_ENVIRONMENT_GET_TARGET_REFRESH_RATE (50 | RETRO_ENVIRONMENT_EXPERIMENTAL)
                                             /* float * --
                                             * Float value that lets us know what target refresh rate
-                                            * is curently in use by the frontend.
+                                            * is currently in use by the frontend.
                                             *
                                             * The core can use the returned value to set an ideal
                                             * refresh rate/framerate.
@@ -1846,7 +1846,7 @@ typedef int64_t (RETRO_CALLCONV *retro_vfs_read_t)(struct retro_vfs_file_handle 
  * Introduced in VFS API v1 */
 typedef int64_t (RETRO_CALLCONV *retro_vfs_write_t)(struct retro_vfs_file_handle *stream, const void *s, uint64_t len);
 
-/* Flush pending writes to file, if using buffered IO. Returns 0 on sucess, or -1 on failure.
+/* Flush pending writes to file, if using buffered IO. Returns 0 on success, or -1 on failure.
  * Introduced in VFS API v1 */
 typedef int (RETRO_CALLCONV *retro_vfs_flush_t)(struct retro_vfs_file_handle *stream);
 
@@ -1858,7 +1858,7 @@ typedef int (RETRO_CALLCONV *retro_vfs_remove_t)(const char *path);
  * Introduced in VFS API v1 */
 typedef int (RETRO_CALLCONV *retro_vfs_rename_t)(const char *old_path, const char *new_path);
 
-/* Stat the specified file. Retruns a bitmask of RETRO_VFS_STAT_* flags, none are set if path was not valid.
+/* Stat the specified file. Returns a bitmask of RETRO_VFS_STAT_* flags, none are set if path was not valid.
  * Additionally stores file size in given variable, unless NULL is given.
  * Introduced in VFS API v3 */
 typedef int (RETRO_CALLCONV *retro_vfs_stat_t)(const char *path, int32_t *size);
@@ -2104,7 +2104,7 @@ struct retro_memory_descriptor
     * 'AR'+blank - valid ('R' is not in 0-9A-F)
     * 'ARB'+blank - valid (the B can't be part of the address either, because
     *                      there is no namespace 'AR')
-    * blank+'B' - not valid, because it's ambigous which address space B1234
+    * blank+'B' - not valid, because it's ambiguous which address space B1234
     *             would refer to.
     * The length can't be used for that purpose; the frontend may want
     * to append arbitrary data to an address, without a separator. */
@@ -2614,7 +2614,7 @@ struct retro_rumble_interface
 typedef void (RETRO_CALLCONV *retro_audio_callback_t)(void);
 
 /* True: Audio driver in frontend is active, and callback is
- * expected to be called regularily.
+ * expected to be called regularly.
  * False: Audio driver in frontend is paused or inactive.
  * Audio callback will not be called until set_state has been
  * called with true.
@@ -2813,7 +2813,7 @@ struct retro_hw_render_callback
  * character is the text character of the pressed key. (UTF-32).
  * key_modifiers is a set of RETROKMOD values or'ed together.
  *
- * The pressed/keycode state can be indepedent of the character.
+ * The pressed/keycode state can be independent of the character.
  * It is also possible that multiple characters are generated from a
  * single keypress.
  * Keycode events should be treated separately from character events.
@@ -3244,7 +3244,7 @@ struct retro_system_content_info_override
     *         2) the basename of the content file inside the
     *            compressed file, without extension
     *         In either case, a core should consider 'name' to
-    *         be the canonical name/ID of the the content file
+    *         be the canonical name/ID of the content file
     *       - retro_game_info_ext::ext is guaranteed to contain the
     *         extension of the content file inside the compressed file,
     *         in lower case format
@@ -3754,7 +3754,7 @@ typedef bool (RETRO_CALLCONV *retro_environment_t)(unsigned cmd, void *data);
  * unless changed (see RETRO_ENVIRONMENT_SET_PIXEL_FORMAT).
  *
  * Width and height specify dimensions of buffer.
- * Pitch specifices length in bytes between two lines in buffer.
+ * Pitch specifies length in bytes between two lines in buffer.
  *
  * For performance reasons, it is highly recommended to have a frame
  * that is packed in memory, i.e. pitch == width * byte_per_pixel.
