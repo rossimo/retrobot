@@ -205,6 +205,12 @@ export default async (data: WorkerData) => {
             if (input.RIGHT)
                 mask |= 1 << RETRO_DEVICE_ID_JOYPAD_RIGHT;
 
+            if (input.L)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_L;
+
+            if (input.R)
+                mask |= 1 << RETRO_DEVICE_ID_JOYPAD_R;
+
             return mask;
         }
 
