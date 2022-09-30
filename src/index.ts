@@ -35,7 +35,6 @@ const main = async () => {
     await client.login(process.env.DISCORD_TOKEN);
     console.log('online');
 
-
     const command = new SlashCommandBuilder()
         .setName('settings')
         .setDescription('Configure settings for the most recent game in the channel');
@@ -83,8 +82,7 @@ const main = async () => {
             channelId: message.channelId
         };
 
-        const infoFile = path.join(data, 'info.json');
-        fs.writeFileSync(infoFile, JSON.stringify(info, null, 4));
+        setGameInfo(id, info);
 
         const { recording, recordingName, state } = await emulate(pool, coreType, buffer, null, []);
 
@@ -131,8 +129,8 @@ const main = async () => {
 
                 const [id, button, multiplier] = interaction.customId.split('-');
 
-                if (fs.existsSync(path.resolve('data', id))) {
-                    const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
+                if (isGameId(id)) {
+                    const info = getGameInfo(id);
 
                     (async () => {
                         try {
@@ -312,12 +310,6 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
         .setDisabled(!enabled)
         .setStyle(highlight == '10' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
-    const settings = new ButtonBuilder()
-        .setCustomId(id + '-' + 'settings')
-        .setEmoji('🔧')
-        .setDisabled(!enabled)
-        .setStyle(ButtonStyle.Secondary);
-
     switch (coreType) {
         case CoreType.GB:
             return [
@@ -331,7 +323,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        multiply3, multiply5, multiply10, settings
+                        multiply3, multiply5, multiply10
                     )
             ] as any[];
 
@@ -351,7 +343,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        multiply3, multiply5, multiply10, settings
+                        multiply3, multiply5, multiply10
                     )
             ] as any[];
 
@@ -367,7 +359,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        multiply3, multiply5, multiply10, settings
+                        multiply3, multiply5, multiply10
                     )
             ] as any[];
 
@@ -387,7 +379,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     ),
                 new ActionRowBuilder()
                     .addComponents(
-                        multiply3, multiply5, multiply10, settings
+                        multiply3, multiply5, multiply10
                     )
             ] as any[];
     }
