@@ -6,11 +6,11 @@ import glob from 'fast-glob';
 import { request } from 'undici';
 import { v4 as uuid } from 'uuid';
 import * as shelljs from 'shelljs';
-import { toLower, endsWith, range, uniq, split, first } from 'lodash';
+import { toLower, endsWith, range, uniq, split, first, reduce } from 'lodash';
 import {
     ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, SelectMenuBuilder,
     ComponentType, MessageActionRowComponentBuilder, GatewayIntentBits, Interaction, Message,
-    PermissionsBitField, TextChannel, MessageOptions
+    PermissionsBitField, TextChannel, MessageOptions, SlashCommandBuilder
 } from 'discord.js';
 
 import { InputState } from './util';
@@ -35,51 +35,14 @@ const main = async () => {
     await client.login(process.env.DISCORD_TOKEN);
     console.log('online');
 
-    const infoFiles = await glob('data/*/info.json');
-    const infos = infoFiles.map(infoFile => ({
-        id: infoFile.split(/[\\\/]/).at(-2),
-        ...(JSON.parse(fs.readFileSync(infoFile).toString()))
-    }));
 
-    const infoIds = uniq(infos.map(info => info.id));
-    const channelIds: string[] = uniq(infos.map(info => info.channelId));
+    const command = new SlashCommandBuilder()
+        .setName('settings')
+        .setDescription('Configure settings for the most recent game in the channel');
 
-    let messages: Message[] = []
+    client.application.commands.set([command]);
 
-    for (const channelId of channelIds) {
-        try {
-            const channel = await client.channels.fetch(channelId) as TextChannel;
-            const messageCollection = await channel.messages.fetch({ limit: 100 });
-            messages = [...messages, ...messageCollection.values()];
-        } catch (err) {
-            console.log(err);
-        }
-    }
-
-    messages = messages.sort((a, b) => b.createdTimestamp - a.createdTimestamp);
-
-    info: for (const infoId of infoIds) {
-        for (const message of messages) {
-            if (message.author.id == client.user.id) {
-                const button = message.components.find(component => component.type == ComponentType.ActionRow)?.components
-                    ?.find(component => component.type == ComponentType.Button);
-
-                const id = first(split(button?.customId, '-'));
-
-                if (id == infoId) {
-                    const info = infos.find(info => info.id == id);
-
-                    if (button?.disabled) {
-                        const channel = client.channels.cache.get(message.channel.id) as TextChannel;
-                        console.log(`unlocking ${info.game} in ${channel.name}`);
-                        await message.edit({ components: buttons(info.coreType, id, 1, true) });
-                    }
-
-                    continue info;
-                }
-            }
-        }
-    }
+    await unlockGames(client);
 
     client.on('messageCreate', async (message: Message) => {
         const attachment = message.attachments.find(att => !!ALL.find(ext => endsWith(toLower(att.name), ext)));
@@ -138,6 +101,29 @@ const main = async () => {
     });
 
     client.on('interactionCreate', async (interaction: Interaction<CacheType>) => {
+        if (interaction.isCommand()) {
+            if (interaction.commandName == 'settings') {
+                try {
+                    const result = await findMostRecentGame(client, interaction.channelId);
+
+                    if (result) {
+                        const { id } = result;
+                        const info = JSON.parse(fs.readFileSync(`data/${id}/info.json`).toString());
+
+                        await interaction.reply(`Settings for ${info.game}`);
+
+                        for (const setting of settingsForm(result.id)) {
+                            await interaction.channel.send(setting);
+                        }
+                    } else {
+                        await interaction.reply('Could not find game');
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+        }
+
         if (interaction.isButton()) {
             try {
                 const player = client.guilds.cache.get(interaction.guildId).members.cache.get(interaction.user.id);
@@ -145,13 +131,7 @@ const main = async () => {
 
                 const [id, button, multiplier] = interaction.customId.split('-');
 
-                if (button == 'settings') {
-                    await interaction.update({});
-
-                    for (const setting of settingsForm(id)) {
-                        await message.channel.send(setting);
-                    }
-                } else if (fs.existsSync(path.resolve('data', id))) {
+                if (fs.existsSync(path.resolve('data', id))) {
                     const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
 
                     (async () => {
@@ -467,7 +447,75 @@ const joyToWord = (input: InputState) => {
     if (input.SELECT) return 'Select';
 }
 
+interface GameInfo {
+    game: string
+    coreType: CoreType
+    guild: string
+    channelId: string
+}
+
+const isGameId = (id: string) => {
+    return fs.existsSync(`data/${id}`);
+}
+
+const getGameInfo = (id: string): GameInfo => {
+    return JSON.parse(fs.readFileSync(`data/${id}/info.json`).toString())
+}
+
+const setGameInfo = (id: string, info: GameInfo) => {
+    return fs.writeFileSync(`data/${id}/info.json`, JSON.stringify(info, null, 4));
+}
+
+const findMostRecentGame = async (client: Client, channelId: string): Promise<{ id: string, message: Message, channel: TextChannel }> => {
+    const channel = await client.channels.fetch(channelId) as TextChannel;
+    const messages = await channel.messages.fetch({ limit: 100 });
+
+    for (const message of messages.values()) {
+        if (message.author.id == client.user.id) {
+            const button = message.components.find(component => component.type == ComponentType.ActionRow)?.components
+                ?.find(component => component.type == ComponentType.Button);
+
+            if (button) {
+                const id = first(split(button?.customId, '-'));
+
+                if (isGameId(id)) {
+                    return { id, message, channel };
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+const unlockGames = async (client: Client) => {
+    const infoIds = (await glob('data/*')).map(dir => dir.split(/[\\\/]/).at(-1));
+    const infos = reduce(infoIds, (acc, id) => ({
+        ...acc,
+        [id]: getGameInfo(id)
+    }), {} as { [id: string]: GameInfo });
+
+    const channelIds: string[] = uniq(reduce(infos, (acc, info) => [...acc, info.channelId], []));
+
+    for (const channelId of channelIds) {
+        try {
+            const result = await findMostRecentGame(client, channelId);
+            if (result) {
+                const { id, message, channel } = result;
+                const info = infos[id];
+
+                if (info) {
+                    console.log(`unlocking ${info.game} in ${channel.name}`);
+                    await message.edit({ components: buttons(info.coreType, id, 1, true) });
+                }
+            }
+        } catch (err) {
+            console.log(err);
+        }
+    }
+}
+
 main().catch(err => {
     console.error(err);
     process.exit(1);
-})
+});
