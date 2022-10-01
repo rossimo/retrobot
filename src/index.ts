@@ -548,7 +548,7 @@ const findMostRecentGame = async (client: Client, channelId: string): Promise<{ 
 }
 
 const unlockGames = async (client: Client) => {
-    const infoIds = (await glob('data/*', { onlyDirectories: true })).map(dir => dir.split(/[\\\/]/).at(-1));
+    const infoIds = (await glob('data/*/info.json')).map(dir => dir.split(/[\\\/]/).at(-2));
     const infos = reduce(infoIds, (acc, id) => ({
         ...acc,
         [id]: getGameInfo(id)
