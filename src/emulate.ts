@@ -84,7 +84,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
 
             default:
             case InputAssistSpeed.Normal:
-                inputAssistWait = 30;
+                inputAssistWait = 60;
                 break;
         }
 
