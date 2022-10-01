@@ -103,8 +103,10 @@ const main = async () => {
     });
 
     client.on('interactionCreate', async (interaction: Interaction<CacheType>) => {
+        const isAdmin = interaction.memberPermissions.has(PermissionsBitField.Flags.Administrator);
+
         try {
-            if (interaction.isCommand()) {
+            if (interaction.isCommand() && isAdmin) {
                 if (interaction.commandName == 'settings') {
                     const result = await findMostRecentGame(client, interaction.channelId);
 
@@ -123,7 +125,7 @@ const main = async () => {
                 }
             }
 
-            if (interaction.isSelectMenu()) {
+            if (interaction.isSelectMenu() && isAdmin) {
                 const [name, id, setting] = interaction.customId.split('-');
 
                 if (name == 'settings' && isGameId(id)) {
@@ -175,8 +177,8 @@ const main = async () => {
                                 break;
 
                             default:
-                                case DirectionPress.Release:
-                                    info.directionPress = DirectionPress.Release;
+                            case DirectionPress.Release:
+                                info.directionPress = DirectionPress.Release;
                                 break;
                         }
 
