@@ -15,6 +15,7 @@ import {
 
 import { InputState } from './util';
 import { CoreType, emulate } from './emulate';
+import { setGameInfo, isGameId, getGameInfo, GameInfo, InputAssist, InputAssistSpeed, DirectionPress } from './gameInfo';
 
 const NES = ['nes'];
 const SNES = ['sfc', 'smc'];
@@ -75,16 +76,19 @@ const main = async () => {
         const gameFile = path.join(data, attachment.name);
         fs.writeFileSync(gameFile, buffer);
 
-        const info = {
+        const info: GameInfo = {
             game: attachment.name,
             coreType,
             guild: message.guildId,
-            channelId: message.channelId
+            channelId: message.channelId,
+            inputAssist: InputAssist.Autoplay,
+            inputAssistSpeed: InputAssistSpeed.Normal,
+            directionPress: DirectionPress.Release
         };
 
         setGameInfo(id, info);
 
-        const { recording, recordingName, state } = await emulate(pool, coreType, buffer, null, []);
+        const { recording, recordingName, state } = await emulate(pool, coreType, buffer, null, info, []);
 
         const stateFile = path.join(data, 'state.sav');
         fs.writeFileSync(stateFile, state);
@@ -99,31 +103,90 @@ const main = async () => {
     });
 
     client.on('interactionCreate', async (interaction: Interaction<CacheType>) => {
-        if (interaction.isCommand()) {
-            if (interaction.commandName == 'settings') {
-                try {
+        try {
+            if (interaction.isCommand()) {
+                if (interaction.commandName == 'settings') {
                     const result = await findMostRecentGame(client, interaction.channelId);
 
                     if (result) {
                         const { id } = result;
-                        const info = JSON.parse(fs.readFileSync(`data/${id}/info.json`).toString());
+                        const info = getGameInfo(id);
 
                         await interaction.reply(`Settings for ${info.game}`);
 
-                        for (const setting of settingsForm(result.id)) {
+                        for (const setting of settingsForm(result.id, info)) {
                             await interaction.channel.send(setting);
                         }
                     } else {
                         await interaction.reply('Could not find game');
                     }
-                } catch (err) {
-                    console.error(err);
                 }
             }
-        }
 
-        if (interaction.isButton()) {
-            try {
+            if (interaction.isSelectMenu()) {
+                const [name, id, setting] = interaction.customId.split('-');
+
+                if (name == 'settings' && isGameId(id)) {
+                    const info = getGameInfo(id);
+
+                    if (setting == 'input_assist') {
+                        const [value] = interaction.values;
+                        switch (value) {
+                            case InputAssist.Wait:
+                                info.inputAssist = InputAssist.Wait;
+                                break;
+
+                            case InputAssist.Off:
+                                info.inputAssist = InputAssist.Off;
+                                break;
+
+                            default:
+                            case InputAssist.Autoplay:
+                                info.inputAssist = InputAssist.Autoplay;
+                                break;
+                        }
+
+                        setGameInfo(id, info);
+                        interaction.update(inputAssistSetting(id, info));
+                    } else if (setting == 'input_assist_speed') {
+                        const [value] = interaction.values;
+                        switch (value) {
+                            case InputAssistSpeed.Fast:
+                                info.inputAssistSpeed = InputAssistSpeed.Fast;
+                                break;
+
+                            case InputAssistSpeed.Slow:
+                                info.inputAssistSpeed = InputAssistSpeed.Slow;
+                                break;
+
+                            default:
+                            case InputAssistSpeed.Normal:
+                                info.inputAssistSpeed = InputAssistSpeed.Normal;
+                                break;
+                        }
+
+                        setGameInfo(id, info);
+                        interaction.update(inputAssistSpeedSetting(id, info));
+                    } else if (setting == 'direction_press') {
+                        const [value] = interaction.values;
+                        switch (value) {
+                            case DirectionPress.Hold:
+                                info.directionPress = DirectionPress.Hold;
+                                break;
+
+                            default:
+                                case DirectionPress.Release:
+                                    info.directionPress = DirectionPress.Release;
+                                break;
+                        }
+
+                        setGameInfo(id, info);
+                        interaction.update(directionPressSetting(id, info));
+                    }
+                }
+            }
+
+            if (interaction.isButton()) {
                 const player = client.guilds.cache.get(interaction.guildId).members.cache.get(interaction.user.id);
                 const message = interaction.message;
 
@@ -154,18 +217,14 @@ const main = async () => {
                     }
 
                     if (playerInputs.length > 0) {
-
                         message.channel.sendTyping();
-
-                        const info = JSON.parse(fs.readFileSync(path.resolve('data', id, 'info.json')).toString());
 
                         let game = fs.readFileSync(path.resolve('data', id, info.game))
                         let oldState = fs.readFileSync(path.resolve('data', id, 'state.sav'));
 
-                        const { recording, recordingName, state: newState } = await emulate(pool, info.coreType, game, oldState, playerInputs);
+                        const { recording, recordingName, state: newState } = await emulate(pool, info.coreType, game, oldState, info, playerInputs);
 
                         fs.writeFileSync(path.resolve('data', id, 'state.sav'), newState);
-
 
                         await message.channel.send({
                             content: `${player.nickname || player.displayName} pressed ${joyToWord(first(playerInputs))}${parseInt(multiplier) > 1 ? ' x' + multiplier : ''}...`,
@@ -179,9 +238,9 @@ const main = async () => {
                 } else {
                     await interaction.update({ content: 'Cannot find save for this game' });
                 }
-            } catch (err) {
-                console.error(err);
             }
+        } catch (err) {
+            console.error(err);
         }
     });
 }
@@ -387,41 +446,66 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
     return [];
 };
 
-const settingsForm = (id: string): MessageOptions[] => ([
-    {
-        content: 'Input Assist',
-        components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
-            .addComponents(new SelectMenuBuilder()
-                .setCustomId(`config-${id}-input_assist`)
-                .setOptions({
-                    label: 'Autoplay',
-                    value: 'confirm',
-                    default: true
-                }, {
-                    label: 'Wait',
-                    value: 'wait'
-                }, {
-                    label: 'Off',
-                    value: 'off'
-                }))]
-    },
-    {
-        content: 'Input Assist Confirm Speed',
-        components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
-            .addComponents(new SelectMenuBuilder()
-                .setCustomId(`config-${id}-input_assist_speed`)
-                .setOptions({
-                    label: 'Fast',
-                    value: 'fast'
-                }, {
-                    label: 'Normal',
-                    value: 'normal',
-                    default: true
-                }, {
-                    label: 'Slow',
-                    value: 'slow'
-                }))]
-    }
+const inputAssistSetting = (id, info: GameInfo) => ({
+    content: 'Input Assist',
+    components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
+        .addComponents(new SelectMenuBuilder()
+            .setCustomId(`settings-${id}-input_assist`)
+            .setOptions({
+                label: 'Autoplay',
+                value: InputAssist.Autoplay,
+                default: info.inputAssist == InputAssist.Autoplay
+            }, {
+                label: 'Wait',
+                value: InputAssist.Wait,
+                default: info.inputAssist == InputAssist.Wait
+            }, {
+                label: 'Off',
+                value: InputAssist.Off,
+                default: info.inputAssist == InputAssist.Off
+            }))]
+})
+
+const inputAssistSpeedSetting = (id, info: GameInfo) => ({
+    content: 'Input Assist Speed',
+    components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
+        .addComponents(new SelectMenuBuilder()
+            .setCustomId(`settings-${id}-input_assist_speed`)
+            .setOptions({
+                label: 'Fast',
+                value: InputAssistSpeed.Fast,
+                default: info.inputAssistSpeed == InputAssistSpeed.Fast
+            }, {
+                label: 'Normal',
+                value: InputAssistSpeed.Normal,
+                default: info.inputAssistSpeed == InputAssistSpeed.Normal
+            }, {
+                label: 'Slow',
+                value: InputAssistSpeed.Slow,
+                default: info.inputAssistSpeed == InputAssistSpeed.Slow
+            }))]
+})
+
+const directionPressSetting = (id, info: GameInfo) => ({
+    content: 'Directional Press',
+    components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
+        .addComponents(new SelectMenuBuilder()
+            .setCustomId(`settings-${id}-direction_press`)
+            .setOptions({
+                label: 'Release',
+                value: DirectionPress.Release,
+                default: info.directionPress == DirectionPress.Release
+            }, {
+                label: 'Hold',
+                value: DirectionPress.Hold,
+                default: info.directionPress == DirectionPress.Hold
+            }))]
+})
+
+const settingsForm = (id: string, info: GameInfo): MessageOptions[] => ([
+    inputAssistSetting(id, info),
+    inputAssistSpeedSetting(id, info),
+    directionPressSetting(id, info)
 ]);
 
 const joyToWord = (input: InputState) => {
@@ -437,25 +521,6 @@ const joyToWord = (input: InputState) => {
     if (input.RIGHT) return 'Right';
     if (input.START) return 'Start';
     if (input.SELECT) return 'Select';
-}
-
-interface GameInfo {
-    game: string
-    coreType: CoreType
-    guild: string
-    channelId: string
-}
-
-const isGameId = (id: string) => {
-    return fs.existsSync(`data/${id}`);
-}
-
-const getGameInfo = (id: string): GameInfo => {
-    return JSON.parse(fs.readFileSync(`data/${id}/info.json`).toString())
-}
-
-const setGameInfo = (id: string, info: GameInfo) => {
-    return fs.writeFileSync(`data/${id}/info.json`, JSON.stringify(info, null, 4));
 }
 
 const findMostRecentGame = async (client: Client, channelId: string): Promise<{ id: string, message: Message, channel: TextChannel }> => {
@@ -481,7 +546,7 @@ const findMostRecentGame = async (client: Client, channelId: string): Promise<{ 
 }
 
 const unlockGames = async (client: Client) => {
-    const infoIds = (await glob('data/*')).map(dir => dir.split(/[\\\/]/).at(-1));
+    const infoIds = (await glob('data/*', { onlyDirectories: true })).map(dir => dir.split(/[\\\/]/).at(-1));
     const infos = reduce(infoIds, (acc, id) => ({
         ...acc,
         [id]: getGameInfo(id)
