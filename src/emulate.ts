@@ -5,7 +5,6 @@ import * as path from 'path';
 import Piscina from 'piscina';
 import encode from 'image-encode';
 import { crc32c } from 'hash-wasm';
-import EventEmitter from 'events';
 import * as shelljs from 'shelljs';
 import ffmpeg from 'fluent-ffmpeg';
 import { performance } from 'perf_hooks';
@@ -16,6 +15,7 @@ import { path as ffprobePath } from '@ffprobe-installer/ffprobe';
 import { arraysEqual, InputState, isDirection, rgb565toRaw } from './util';
 import { emulateParallel } from './workerInterface';
 import { Frame } from './worker';
+import { DirectionPress, GameInfo, InputAssist, InputAssistSpeed } from './gameInfo';
 
 tmp.setGracefulCleanup();
 
@@ -46,7 +46,7 @@ export enum CoreType {
     GBA = 'gba'
 }
 
-export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Array, state: Uint8Array, playerInputs: InputState[]) => {
+export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Array, state: Uint8Array, info: GameInfo, playerInputs: InputState[]) => {
     let data = { coreType, game, state, frames: [], av_info: {} as any };
 
     const startEmulation = performance.now();
@@ -57,7 +57,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         const next = playerInputs[i + 1];
 
         if (isDirection(current)) {
-            if (isEqual(current, next) || isEqual(current, prev)) {
+            if (info.directionPress == DirectionPress.Hold && (isEqual(current, next) || isEqual(current, prev))) {
                 data = await emulateParallel(pool, data, { input: current, duration: 20 });
             } else {
                 data = await emulateParallel(pool, data, { input: current, duration: 8 });
@@ -69,48 +69,66 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         }
     }
 
-    const endFrameCount = data.frames.length + 30 * 60;
+    if (info.inputAssist == InputAssist.Off) {
+        data = await emulateParallel(pool, data, { input: {}, duration: 20 });
+    } else {
+        let inputAssistWait = 60;
+        switch (info.inputAssistSpeed) {
+            case InputAssistSpeed.Fast:
+                inputAssistWait = 30;
+                break;
 
-    test: while (data.frames.length < endFrameCount) {
-        const possibilities: { [hash: string]: AutoplayInputState } = {};
+            case InputAssistSpeed.Slow:
+                inputAssistWait = 120;
+                break;
 
-        const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
-        const controlHashTask = controlResultTask.then(result => crc32c(last(result.frames).buffer));
+            default:
+            case InputAssistSpeed.Normal:
+                inputAssistWait = 30;
+                break;
+        }
 
-        await Promise.all(TEST_INPUTS.map(testInput => async () => {
-            if (size(possibilities) > 1) {
-                return;
-            }
+        const endFrameCount = data.frames.length + 30 * 60;
 
-            const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 });
-            const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 });
+        test: while (data.frames.length < endFrameCount) {
+            const possibilities: { [hash: string]: AutoplayInputState } = {};
 
-            const testHash = await crc32c(last(testIdleData.frames).buffer);
+            const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
+            const controlHashTask = controlResultTask.then(result => crc32c(last(result.frames).buffer));
 
-            if ((await controlHashTask) != testHash) {
-                if (!possibilities[testHash] || (possibilities[testHash] && testInput.autoplay)) {
-                    possibilities[testHash] = {
-                        ...testInput,
-                        data: testIdleData
-                    };
+            await Promise.all(TEST_INPUTS.map(testInput => async () => {
+                if (size(possibilities) > 1) {
+                    return;
                 }
+
+                const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 });
+                const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 });
+
+                const testHash = await crc32c(last(testIdleData.frames).buffer);
+
+                if ((await controlHashTask) != testHash) {
+                    if (!possibilities[testHash] || (possibilities[testHash] && testInput.autoplay)) {
+                        possibilities[testHash] = {
+                            ...testInput,
+                            data: testIdleData
+                        };
+                    }
+                }
+            }).map(task => task()));
+
+            const possibleAutoplay = first(values(possibilities));
+
+            if (size(possibilities) > 1 || (size(possibilities) == 1 && info.inputAssist == InputAssist.Wait)) {
+                data = await emulateParallel(pool, data, { input: {}, duration: 20 });
+                break test;
+            } else if (size(possibilities) == 1 && possibleAutoplay.autoplay) {
+                data = possibleAutoplay.data;
+            } else {
+                data = await controlResultTask;
             }
-        }).map(task => task()));
 
-        if (size(possibilities) > 1) {
-            data = await emulateParallel(pool, data, { input: {}, duration: 20 });
-            break test;
+            data = await emulateParallel(pool, data, { input: {}, duration: inputAssistWait });
         }
-
-        const possibleAutoplay = first(values(possibilities));
-
-        if (size(possibilities) == 1 && possibleAutoplay.autoplay) {
-            data = possibleAutoplay.data;
-        } else {
-            data = await controlResultTask;
-        }
-
-        data = await emulateParallel(pool, data, { input: {}, duration: 60 });
     }
 
     const endEmulation = performance.now();

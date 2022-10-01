@@ -11,6 +11,11 @@ Retrobot simplifies control by auto-forwarding through idle parts of games, such
 
 Additionally, numbered buttons are added to automatically repeat button presses. This is useful for walking in a specific direction for a long period.
 
+## Settings
+You can configure how input assist works, how often input assist activates, and how directional button presses are repeated with the `/settings` command.
+
+![Settings](settings.png)
+
 ## How to Use
 Create a bot in the [Discord Developer Portal](https://discord.com/developers/applications), and obtain a token for your bot. Also, ensure "Message Content Intent" is enabled for your bot.
 

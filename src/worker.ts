@@ -53,8 +53,6 @@ let lastGbStateHash = '';
 let lastNesStateHash = '';
 let lastSnesStateHash = '';
 
-console.log('init')
-
 const setup = (core: Core) => {
     core.retro_set_environment((cmd: number, data: any) => {
         if (cmd == 3) {
