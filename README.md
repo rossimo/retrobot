@@ -52,7 +52,7 @@ By default, Retrobot will use 3 input assist worker threads to emulate the resul
 ### Example
 ```
 DISCORD_TOKEN=YOUR DISCORD TOKEN HERE
-MAX_WORKERS = 2
+MAX_WORKERS=2
 ```
 
 ## Running as a Daemon
