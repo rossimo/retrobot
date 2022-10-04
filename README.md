@@ -39,6 +39,22 @@ https://discord.com/api/oauth2/authorize?client_id=YOUR_OAUTH_CLIENT_ID_HERE&per
 
 Once the bot has joined your Discord server, drop an uncompressed ROM file into a channel. The bot will automatically find the ROM file, and begin emulation. Note: only server "administrators" can start new games.
 
+## Config
+
+There are additional configuration options you can to your `.env` file to tweak performance:
+
+### `MAX_WORKERS`
+By default, Retrobot will create a worker thread for each CPU core on the host system. These workers are use parrallelize multiple games, and to split the work for input assist detection. If you're low on RAM, tweaking this number to something small (i.e., `2`) will reduce memory usage at the cost of total emulation time.
+
+### `MAX_WORKERS_PER_GAME`
+By default, Retrobot will use 3 input assist worker threads to emulate the result of a button press for a game. Raising this number for faster systems will speed up input assist for games with lots of uninterupptable scenes (conversations, cinematics, etc). Raising this number above `MAX_WORKERS` does not have an effect.
+
+### Example
+```
+DISCORD_TOKEN=YOUR DISCORD TOKEN HERE
+MAX_WORKERS = 2
+```
+
 ## Running as a Daemon
 If you'd like a simple way to run the bot as a background service, there's a helper `yarn` script. It will fire up the bot as a background service, and record logs to `./forever/retrobot.log`
 ```

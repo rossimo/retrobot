@@ -21,6 +21,7 @@
     "@types/shelljs": "^0.8.11",
     "@types/tmp": "^0.2.3",
     "@types/uuid": "^8.3.4",
+    "bottleneck": "^2.19.5",
     "cross-env": "^7.0.3",
     "discord.js": "^14.3.0",
     "dotenv": "^16.0.1",

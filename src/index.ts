@@ -16,6 +16,7 @@ import {
 import { InputState } from './util';
 import { CoreType, emulate } from './emulate';
 import { setGameInfo, isGameId, getGameInfo, GameInfo, InputAssist, InputAssistSpeed, DirectionPress } from './gameInfo';
+import { MAX_WORKERS } from './config';
 
 const NES = ['nes'];
 const SNES = ['sfc', 'smc'];
@@ -27,7 +28,10 @@ const ALL = [...NES, ...SNES, ...GB, ...GBA];
 const pool = new Piscina({
     filename: path.resolve(__dirname, path.resolve(__dirname, 'worker.ts')),
     name: 'default',
-    execArgv: ['-r', 'ts-node/register']
+    execArgv: ['-r', 'ts-node/register'],
+    ...MAX_WORKERS == -1
+        ? {}
+        : { maxThreads: MAX_WORKERS }
 });
 
 const main = async () => {

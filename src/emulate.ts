@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as tmp from 'tmp';
 import * as path from 'path';
 import Piscina from 'piscina';
+import Bottleneck from 'bottleneck';
 import encode from 'image-encode';
 import { crc32c } from 'hash-wasm';
 import * as shelljs from 'shelljs';
@@ -16,6 +17,7 @@ import { arraysEqual, InputState, isDirection, rgb565toRaw } from './util';
 import { emulateParallel } from './workerInterface';
 import { Frame } from './worker';
 import { DirectionPress, GameInfo, InputAssist, InputAssistSpeed } from './gameInfo';
+import { MAX_WORKERS_PER_GAME } from './config';
 
 tmp.setGracefulCleanup();
 
@@ -50,6 +52,12 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
     let data = { coreType, game, state, frames: [], av_info: {} as any };
 
     const startEmulation = performance.now();
+
+    const inputAssistBottleneck = new Bottleneck({
+        ...MAX_WORKERS_PER_GAME == -1
+            ? {}
+            : { maxConcurrent: MAX_WORKERS_PER_GAME }
+    });
 
     for (let i = 0; i < playerInputs.length; i++) {
         const prev = playerInputs[i - 1];
@@ -114,7 +122,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
                         };
                     }
                 }
-            }).map(task => task()));
+            }).map(task => inputAssistBottleneck.schedule(task)));
 
             const possibleAutoplay = first(values(possibilities));
 
