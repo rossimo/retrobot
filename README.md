@@ -49,10 +49,14 @@ By default, Retrobot will create a worker thread for each CPU core on the host s
 ### `MAX_WORKERS_PER_GAME`
 By default, Retrobot will use 3 input assist worker threads to emulate the result of a button press for a game. Raising this number for faster systems will speed up input assist for games with lots of uninterupptable scenes (conversations, cinematics, etc). Raising this number above `MAX_WORKERS` does not have an effect.
 
+### `RECORDING_FRAMERATE`
+By default, Retrobot will encode GIFs at max of 30 FPS. You can configure this to be between 1 and 60 FPS.
+
 ### Example
 ```
 DISCORD_TOKEN=YOUR DISCORD TOKEN HERE
 MAX_WORKERS=2
+RECORDING_FRAMERATE=60
 ```
 
 ## Running as a Daemon

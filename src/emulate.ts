@@ -17,14 +17,12 @@ import { arraysEqual, InputState, isDirection, rgb565toRaw } from './util';
 import { emulateParallel } from './workerInterface';
 import { Frame } from './worker';
 import { DirectionPress, GameInfo, InputAssist, InputAssistSpeed } from './gameInfo';
-import { MAX_WORKERS_PER_GAME } from './config';
+import { MAX_WORKERS_PER_GAME, RECORDING_FRAMERATE } from './config';
 
 tmp.setGracefulCleanup();
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
-
-const RECORDING_FRAMERATE = 30;
 
 interface AutoplayInputState extends InputState {
     autoplay?: boolean
