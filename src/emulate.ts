@@ -31,12 +31,12 @@ interface AutoplayInputState extends InputState {
 
 const TEST_INPUTS: AutoplayInputState[] = [
     { A: true, autoplay: true },
-    { B: true, autoplay: false },
-    { DOWN: true, autoplay: false },
-    { UP: true, autoplay: false },
     { LEFT: true, autoplay: false },
+    { B: true, autoplay: false },
+    { UP: true, autoplay: false },
+    { SELECT: true, autoplay: false },
     { RIGHT: true, autoplay: false },
-    { SELECT: true, autoplay: false }
+    { DOWN: true, autoplay: false },
 ];
 
 export enum CoreType {
@@ -64,19 +64,19 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
 
         if (isDirection(current)) {
             if (info.directionPress == DirectionPress.Hold && (isEqual(current, next) || isEqual(current, prev))) {
-                data = await emulateParallel(pool, data, { input: current, duration: 20 });
+                data = await emulateParallel(pool, data, { input: current, duration: 16 });
             } else {
                 data = await emulateParallel(pool, data, { input: current, duration: 8 });
                 data = await emulateParallel(pool, data, { input: {}, duration: 8 });
             }
         } else {
             data = await emulateParallel(pool, data, { input: current, duration: 4 });
-            data = await emulateParallel(pool, data, { input: {}, duration: 16 });
+            data = await emulateParallel(pool, data, { input: {}, duration: 12 });
         }
     }
 
     if (info.inputAssist == InputAssist.Off) {
-        data = await emulateParallel(pool, data, { input: {}, duration: 20 });
+        data = await emulateParallel(pool, data, { input: {}, duration: 16 });
     } else {
         let inputAssistWait = 60;
         switch (info.inputAssistSpeed) {
@@ -100,7 +100,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
         test: while (data.frames.length < endFrameCount) {
             const possibilities: { [hash: string]: AutoplayInputState } = {};
 
-            const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 20 })
+            const controlResultTask = emulateParallel(pool, data, { input: {}, duration: 16 })
             const controlHashTask = controlResultTask.then(result => crc32c(last(result.frames).buffer));
 
             await Promise.all(TEST_INPUTS.map(testInput => async () => {
@@ -109,7 +109,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
                 }
 
                 const testInputData = await emulateParallel(pool, data, { input: testInput, duration: 4 });
-                const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 16 });
+                const testIdleData = await emulateParallel(pool, testInputData, { input: {}, duration: 12 });
 
                 const testHash = await crc32c(last(testIdleData.frames).buffer);
 
@@ -126,7 +126,7 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
             const possibleAutoplay = first(values(possibilities));
             let couldAutoplay = false;
             if (size(possibilities) > 1 || (size(possibilities) == 1 && info.inputAssist == InputAssist.Wait)) {
-                data = await emulateParallel(pool, data, { input: {}, duration: 20 });
+                data = await controlResultTask;
                 break test;
             } else if (size(possibilities) == 1 && possibleAutoplay.autoplay) {
                 couldAutoplay = true;
@@ -136,16 +136,16 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
                     autoplayWait = 0;
                 } else {
                     data = await controlResultTask;
-                    autoplayWait += 20;
+                    autoplayWait += 16;
                 }
             } else {
                 data = await controlResultTask;
                 autoplayWait = 0;
             }
 
-            data = await emulateParallel(pool, data, { input: {}, duration: 20 });
+            data = await emulateParallel(pool, data, { input: {}, duration: 30 });
             if (couldAutoplay) {
-                autoplayWait += 20;
+                autoplayWait += 30;
             }
         }
     }
