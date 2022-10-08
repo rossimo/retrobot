@@ -123,29 +123,31 @@ export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Arra
                 }
             }).map(task => inputAssistBottleneck.schedule(task)));
 
-            const possibleAutoplay = first(values(possibilities));
-            let couldAutoplay = false;
+            const possibility = first(values(possibilities));
+            let duringAutoplay = size(possibilities) == 1 && possibility?.autoplay;
+
             if (size(possibilities) > 1 || (size(possibilities) == 1 && info.inputAssist == InputAssist.Wait)) {
                 data = await controlResultTask;
                 break test;
-            } else if (size(possibilities) == 1 && possibleAutoplay.autoplay) {
-                couldAutoplay = true;
+            }
 
+            data = await controlResultTask;
+
+            if (duringAutoplay) {
                 if (autoplayWait >= inputAssistWait) {
-                    data = possibleAutoplay.data;
+                    data = possibility.data;
                     autoplayWait = 0;
+                    duringAutoplay = false;
                 } else {
-                    data = await controlResultTask;
                     autoplayWait += 16;
                 }
             } else {
-                data = await controlResultTask;
                 autoplayWait = 0;
             }
 
-            data = await emulateParallel(pool, data, { input: {}, duration: 30 });
-            if (couldAutoplay) {
-                autoplayWait += 30;
+            data = await emulateParallel(pool, data, { input: {}, duration: 15 });
+            if (duringAutoplay) {
+                autoplayWait += 15;
             }
         }
     }
