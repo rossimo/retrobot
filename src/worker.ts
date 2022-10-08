@@ -44,14 +44,17 @@ export interface WorkerData {
 const NesCore = require('../cores/quicknes_libretro');
 const SnesCore = require('../cores/snes9x2010_libretro');
 const GbCore = require('../cores/mgba_libretro');
+const GenesisCore = require('../cores/genesis_plus_gx_libretro');
 
 let lastGbGameHash = '';
 let lastNesGameHash = '';
 let lastSnesGameHash = '';
+let lastGenesisGameHash = '';
 
 let lastGbStateHash = '';
 let lastNesStateHash = '';
 let lastSnesStateHash = '';
+let lastGenesisStateHash = '';
 
 const setup = (core: Core) => {
     core.retro_set_environment((cmd: number, data: any) => {
@@ -77,6 +80,7 @@ const setup = (core: Core) => {
 let nesCoreInit: Promise<Core>;
 let snesCoreInit: Promise<Core>;
 let gbCoreInit: Promise<Core>;
+let genesisCoreInit: Promise<Core>;
 
 export default async (data: WorkerData) => {
     const { coreType, input, duration, game, state, gameHash, stateHash } = data;
@@ -94,6 +98,10 @@ export default async (data: WorkerData) => {
         case CoreType.GBA:
         case CoreType.GB:
             core = await (gbCoreInit = gbCoreInit || GbCore().then(setup));
+            break;
+
+        case CoreType.GENESIS:
+            core = await (genesisCoreInit = genesisCoreInit || GenesisCore().then(setup));
             break;
 
         default:
@@ -119,6 +127,10 @@ export default async (data: WorkerData) => {
         case CoreType.GB:
             lastGameHash = lastGbGameHash;
             break;
+
+        case CoreType.GENESIS:
+            lastGameHash = lastGenesisGameHash;
+            break;
     }
 
     if (incomingGameHash != lastGameHash || state?.byteLength == 0) {
@@ -136,6 +148,10 @@ export default async (data: WorkerData) => {
             case CoreType.GBA:
             case CoreType.GB:
                 lastGbGameHash = incomingGameHash;
+                break;
+
+            case CoreType.GENESIS:
+                lastGenesisGameHash = incomingGameHash;
                 break;
         }
     }
@@ -161,6 +177,10 @@ export default async (data: WorkerData) => {
             case CoreType.GBA:
             case CoreType.GB:
                 lastStateHash = lastGbStateHash;
+                break;
+
+            case CoreType.GENESIS:
+                lastStateHash = lastGenesisStateHash;
                 break;
         }
 
@@ -253,6 +273,10 @@ export default async (data: WorkerData) => {
         case CoreType.GBA:
         case CoreType.GB:
             lastGbStateHash = newStateHash;
+            break;
+
+        case CoreType.GENESIS:
+            lastGenesisStateHash = newStateHash;
             break;
     }
 

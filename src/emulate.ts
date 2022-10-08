@@ -43,7 +43,8 @@ export enum CoreType {
     NES = 'nes',
     SNES = 'snes',
     GB = 'gb',
-    GBA = 'gba'
+    GBA = 'gba',
+    GENESIS = 'genesis'
 }
 
 export const emulate = async (pool: Piscina, coreType: CoreType, game: Uint8Array, state: Uint8Array, info: GameInfo, playerInputs: InputState[]) => {

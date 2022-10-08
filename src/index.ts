@@ -27,9 +27,10 @@ const NES = ['nes'];
 const SNES = ['sfc', 'smc'];
 const GB = ['gb', 'gbc'];
 const GBA = ['gba'];
+const GENESIS = ['md'];
 const COMPRESSED = ['zip', 'tar.gz', 'tar.bz2', 'tar.xz', 'bz2'];
 
-const ALL = [...NES, ...SNES, ...GB, ...GBA, ...COMPRESSED];
+const ALL = [...NES, ...SNES, ...GB, ...GBA, ...GENESIS, ...COMPRESSED];
 
 const pool = new Piscina({
     filename: path.resolve(__dirname, path.resolve(__dirname, 'worker.ts')),
@@ -616,6 +617,9 @@ const detectCore = (filename: string): CoreType => {
 
     if (GBA.find(ext => endsWith(toLower(filename), ext)))
         return CoreType.GBA;
+
+    if (GENESIS.find(ext => endsWith(toLower(filename), ext)))
+        return CoreType.GENESIS;
 }
 
 main().catch(err => {
