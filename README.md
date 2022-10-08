@@ -6,6 +6,9 @@ Retrobot is a Discord bot that allows you to play NES/SNES/GB/GBA games with you
 
 ![Example](example.webp)
 
+## How to Use
+Once the bot has joined your Discord server, drop an ROM file into a channel. You can also use `ZIP`, `TAR.GZ`, `TAR.BZ2`, `TAR.XZ`, or `BZ2` archives. The bot will automatically find the ROM file, and begin emulation. Note: only server "administrators" can start new games.
+
 ## Input Assist
 Retrobot simplifies control by auto-forwarding through idle parts of games, such as conversations or battle animations. 
 
@@ -16,7 +19,7 @@ You can configure how input assist works, how often input assist activates, and 
 
 ![Settings](settings.png)
 
-## How to Use
+## How to Set Up
 Create a bot in the [Discord Developer Portal](https://discord.com/developers/applications), and obtain a token for your bot. Also, ensure "Message Content Intent" is enabled for your bot.
 
 ![Message Content Intent screenshot](permissions.png)
@@ -36,8 +39,6 @@ Then invite the bot to a server with the following URL. Be sure to update the OA
 ```
 https://discord.com/api/oauth2/authorize?client_id=YOUR_OAUTH_CLIENT_ID_HERE&permissions=68608&scope=bot
 ```
-
-Once the bot has joined your Discord server, drop an uncompressed ROM file into a channel. The bot will automatically find the ROM file, and begin emulation. Note: only server "administrators" can start new games.
 
 ## Config
 
