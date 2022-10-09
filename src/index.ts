@@ -6,6 +6,11 @@ import glob from 'fast-glob';
 import { request } from 'undici';
 import { v4 as uuid } from 'uuid';
 import * as shelljs from 'shelljs';
+import decompress from 'decompress';
+import decompressTarxz from 'decompress-tarxz';
+import decompressBzip2 from 'decompress-bzip2';
+import decompressTargz from 'decompress-targz';
+import decompressTarbz2 from 'decompress-tarbz2';
 import { toLower, endsWith, range, uniq, split, first, reduce } from 'lodash';
 import {
     ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, SelectMenuBuilder,
@@ -22,8 +27,9 @@ const NES = ['nes'];
 const SNES = ['sfc', 'smc'];
 const GB = ['gb', 'gbc'];
 const GBA = ['gba'];
+const COMPRESSED = ['zip', 'tar.gz', 'tar.bz2', 'tar.xz', 'bz2'];
 
-const ALL = [...NES, ...SNES, ...GB, ...GBA];
+const ALL = [...NES, ...SNES, ...GB, ...GBA, ...COMPRESSED];
 
 const pool = new Piscina({
     filename: path.resolve(__dirname, path.resolve(__dirname, 'worker.ts')),
@@ -49,61 +55,81 @@ const main = async () => {
     await unlockGames(client);
 
     client.on('messageCreate', async (message: Message) => {
-        const attachment = message.attachments.find(att => !!ALL.find(ext => endsWith(toLower(att.name), ext)));
-        if (!attachment || !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-            return;
+        try {
+            const attachment = message.attachments.find(att => !!ALL.find(ext => endsWith(toLower(att.name), ext)));
+            if (!attachment || !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+                return;
+            }
+
+            let game: string;
+            let buffer: Buffer;
+            let coreType: CoreType;
+
+            if (COMPRESSED.find(ext => endsWith(toLower(attachment.name), ext))) {
+                const { body } = await request(attachment.url);
+
+                const files = await decompress(
+                    Buffer.from(await body.arrayBuffer()),
+                    null,
+                    { plugins: [decompressTargz(), decompressTarbz2(), decompressTarxz(), decompressBzip2()] });
+
+                const entry = files.find(file => detectCore(file.path));
+
+                if (entry) {
+                    buffer = entry.data;
+                    coreType = detectCore(entry.path);
+                    game = path.parse(entry.path).base.replace(/[^0-9a-zA-Z_ \.]/gi, '');
+                } else {
+                    return;
+                }
+            } else {
+                coreType = detectCore(attachment.name);
+                if (!coreType) {
+                    return;
+                }
+
+                const { body } = await request(attachment.url);
+                buffer = Buffer.from(await body.arrayBuffer());
+                game = attachment.name;
+            }
+
+            message.channel.sendTyping();
+
+            const id = uuid().slice(0, 5);
+
+            const data = path.resolve('data', id);
+            shelljs.mkdir('-p', data);
+
+            const gameFile = path.join(data, game);
+            fs.writeFileSync(gameFile, buffer);
+
+            const info: GameInfo = {
+                game,
+                coreType,
+                guild: message.guildId,
+                channelId: message.channelId,
+                inputAssist: InputAssist.Autoplay,
+                inputAssistSpeed: InputAssistSpeed.Normal,
+                directionPress: DirectionPress.Release
+            };
+
+            setGameInfo(id, info);
+
+            const { recording, recordingName, state } = await emulate(pool, coreType, buffer, null, info, []);
+
+            const stateFile = path.join(data, 'state.sav');
+            fs.writeFileSync(stateFile, state);
+
+            await message.channel.send({
+                files: [{
+                    attachment: recording,
+                    name: recordingName
+                }],
+                components: buttons(coreType, id, 1, true),
+            });
+        } catch (err) {
+            console.error(err);
         }
-
-        let coreType: CoreType;
-        if (NES.find(ext => endsWith(toLower(attachment.name), ext))) {
-            coreType = CoreType.NES;
-        } else if (SNES.find(ext => endsWith(toLower(attachment.name), ext))) {
-            coreType = CoreType.SNES;
-        } else if (GB.find(ext => endsWith(toLower(attachment.name), ext))) {
-            coreType = CoreType.GB;
-        } else if (GBA.find(ext => endsWith(toLower(attachment.name), ext))) {
-            coreType = CoreType.GBA;
-        } else {
-            return;
-        }
-
-        message.channel.sendTyping();
-
-        const { body } = await request(attachment.url);
-        const buffer = Buffer.from(await body.arrayBuffer());
-
-        const id = uuid().slice(0, 5);
-
-        const data = path.resolve('data', id);
-        shelljs.mkdir('-p', data);
-
-        const gameFile = path.join(data, attachment.name);
-        fs.writeFileSync(gameFile, buffer);
-
-        const info: GameInfo = {
-            game: attachment.name,
-            coreType,
-            guild: message.guildId,
-            channelId: message.channelId,
-            inputAssist: InputAssist.Autoplay,
-            inputAssistSpeed: InputAssistSpeed.Normal,
-            directionPress: DirectionPress.Release
-        };
-
-        setGameInfo(id, info);
-
-        const { recording, recordingName, state } = await emulate(pool, coreType, buffer, null, info, []);
-
-        const stateFile = path.join(data, 'state.sav');
-        fs.writeFileSync(stateFile, state);
-
-        await message.channel.send({
-            files: [{
-                attachment: recording,
-                name: recordingName
-            }],
-            components: buttons(coreType, id, 1, true),
-        });
     });
 
     client.on('interactionCreate', async (interaction: Interaction<CacheType>) => {
@@ -576,6 +602,20 @@ const unlockGames = async (client: Client) => {
             console.log(err);
         }
     }
+}
+
+const detectCore = (filename: string): CoreType => {
+    if (NES.find(ext => endsWith(toLower(filename), ext)))
+        return CoreType.NES;
+
+    if (SNES.find(ext => endsWith(toLower(filename), ext)))
+        return CoreType.SNES;
+
+    if (GB.find(ext => endsWith(toLower(filename), ext)))
+        return CoreType.GB;
+
+    if (GBA.find(ext => endsWith(toLower(filename), ext)))
+        return CoreType.GBA;
 }
 
 main().catch(err => {
