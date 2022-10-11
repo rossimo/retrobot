@@ -26,6 +26,7 @@ jobs:
         password: ${{ secrets.DOCKER_TOKEN  }}
 
     - name: Push image to Docker Hub
+      if: github.event_name == 'push'
       run: |
           IMAGE_ID=${{ github.repository_owner }}/$IMAGE_NAME
           # Change all uppercase to lowercase
@@ -51,6 +52,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Push image to GitHub Container Registry
+      if: github.event_name == 'push'
       run: |
           IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
           # Change all uppercase to lowercase
