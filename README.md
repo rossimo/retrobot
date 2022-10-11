@@ -78,7 +78,7 @@ DISCORD_TOKEN=YOUR DISCORD TOKEN HERE
 
 Run the official Docker image:
 ```
-docker run -d -v ./data:/retrobot/data --envfile .env rossimo/retrobot
+docker run -d -v ./data:/retrobot/data --env-file .env rossimo/retrobot
 ```
 
 ## Running via Docker Compose
