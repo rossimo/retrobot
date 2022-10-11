@@ -70,6 +70,17 @@ And to stop:
 yarn service:stop
 ```
 
+## Running via Docker
+Create a file name exactly `.env` in your clone of this repository with the following contents:
+```
+DISCORD_TOKEN=YOUR DISCORD TOKEN HERE
+```
+
+Run the official Docker image:
+```
+docker run -d -v ./data:/retrobot/data --envfile .env rossimo/retrobot
+```
+
 ## Running via Docker Compose
 
 Requires Docker and Docker Compose is installed on the machine.
