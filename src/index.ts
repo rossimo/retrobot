@@ -7,7 +7,7 @@ import { request } from 'undici';
 import { v4 as uuid } from 'uuid';
 import * as shelljs from 'shelljs';
 import decompress from 'decompress';
-import decompressTarxz from 'decompress-tarxz';
+//import decompressTarxz from 'decompress-tarxz';
 import decompressBzip2 from 'decompress-bzip2';
 import decompressTargz from 'decompress-targz';
 import decompressTarbz2 from 'decompress-tarbz2';
@@ -71,7 +71,7 @@ const main = async () => {
                 const files = await decompress(
                     Buffer.from(await body.arrayBuffer()),
                     null,
-                    { plugins: [decompressTargz(), decompressTarbz2(), decompressTarxz(), decompressBzip2()] });
+                    { plugins: [decompressTargz(), decompressTarbz2(), /* decompressTarxz(), */ decompressBzip2()] });
 
                 const entry = files.find(file => detectCore(file.path));
 
