@@ -385,7 +385,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
 
     const multiply2 = new ButtonBuilder()
         .setCustomId(id + '-' + '2' + '-' + multiplier)
-        .setEmoji('3️2️⃣')
+        .setEmoji('2️⃣')
         .setDisabled(!enabled)
         .setStyle(highlight == '2' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
