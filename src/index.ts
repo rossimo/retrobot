@@ -110,7 +110,8 @@ const main = async () => {
                 channelId: message.channelId,
                 inputAssist: InputAssist.Autoplay,
                 inputAssistSpeed: InputAssistSpeed.Normal,
-                directionPress: DirectionPress.Release
+                directionPress: DirectionPress.Release,
+                multipliers: [3, 5, 10],
             };
 
             setGameInfo(id, info);
@@ -223,7 +224,22 @@ const main = async () => {
                 const message = interaction.message;
 
                 const [id, button, multiplier] = interaction.customId.split('-');
-
+                if (id == 'settings') {
+                    const [_, id, setting, button] = interaction.customId.split('-');
+                    if (setting == 'multiplier') {
+                        const info = getGameInfo(id);
+                        const num = parseInt(button);
+                        if (info.multipliers.includes(num)) {
+                            info.multipliers.splice(info.multipliers.indexOf(num));
+                        } else {
+                            info.multipliers.push(num);
+                            info.multipliers.sort((a,b) => a-b);
+                        }
+                        setGameInfo(id, info);
+                        interaction.update(multiplierSetting(id, info));
+                    }
+                    return;
+                }
                 if (isGameId(id)) {
                     const info = getGameInfo(id);
 
@@ -530,10 +546,32 @@ const directionPressSetting = (id, info: GameInfo) => ({
             }))]
 })
 
+const multiplierSetting = (id, info: GameInfo) => ({
+    content: 'Enabled Multipliers',
+    components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
+        .addComponents(
+            multiplierButton(`settings-${id}-multiplier`, 1, 0, true).setStyle(info.multipliers.includes(1) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            multiplierButton(`settings-${id}-multiplier`, 2, 0, true).setStyle(info.multipliers.includes(2) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            multiplierButton(`settings-${id}-multiplier`, 3, 0, true).setStyle(info.multipliers.includes(3) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            multiplierButton(`settings-${id}-multiplier`, 4, 0, true).setStyle(info.multipliers.includes(4) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            multiplierButton(`settings-${id}-multiplier`, 5, 0, true).setStyle(info.multipliers.includes(5) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            ),
+        new ActionRowBuilder<MessageActionRowComponentBuilder>()
+            .addComponents(
+                multiplierButton(`settings-${id}-multiplier`, 6, 0, true).setStyle(info.multipliers.includes(6) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                multiplierButton(`settings-${id}-multiplier`, 7, 0, true).setStyle(info.multipliers.includes(7) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                multiplierButton(`settings-${id}-multiplier`, 8, 0, true).setStyle(info.multipliers.includes(8) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                multiplierButton(`settings-${id}-multiplier`, 9, 0, true).setStyle(info.multipliers.includes(9) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                multiplierButton(`settings-${id}-multiplier`, 10, 0, true).setStyle(info.multipliers.includes(10) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                )
+        ]
+})
+
 const settingsForm = (id: string, info: GameInfo): MessageOptions[] => ([
     inputAssistSetting(id, info),
     inputAssistSpeedSetting(id, info),
-    directionPressSetting(id, info)
+    directionPressSetting(id, info),
+    multiplierSetting(id, info)
 ]);
 
 const joyToWord = (input: InputState) => {
