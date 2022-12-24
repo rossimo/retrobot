@@ -310,6 +310,14 @@ const isNumeric = (value) => {
     return /^\d+$/.test(value);
 };
 
+const multiplierButton = (id: string, multiplier: number, messageMultiplier: number, enabled: boolean) => {
+    return new ButtonBuilder()
+        .setCustomId(id + '-' + multiplier.toString() + '-' + messageMultiplier)
+        .setEmoji(multiplier == 10 ? "🔟" : multiplier.toString() + '\u20E3')  // Combining Enclosing Keycap, turns a digit into an emoji
+        .setDisabled(!enabled)
+        .setStyle(messageMultiplier == multiplier ? ButtonStyle.Primary : ButtonStyle.Secondary);
+};
+
 const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled: boolean = true, highlight?: string) => {
     const a = new ButtonBuilder()
         .setCustomId(id + '-' + 'a' + '-' + multiplier)
@@ -383,23 +391,11 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
         .setDisabled(!enabled)
         .setStyle(highlight == 'start' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
-    const multiply3 = new ButtonBuilder()
-        .setCustomId(id + '-' + '3' + '-' + multiplier)
-        .setEmoji('3️⃣')
-        .setDisabled(!enabled)
-        .setStyle(highlight == '3' ? ButtonStyle.Success : ButtonStyle.Secondary);
+    const multiply3 = multiplierButton(id, 3, multiplier, enabled);
 
-    const multiply5 = new ButtonBuilder()
-        .setCustomId(id + '-' + '5' + '-' + multiplier)
-        .setEmoji('5️⃣')
-        .setDisabled(!enabled)
-        .setStyle(highlight == '5' ? ButtonStyle.Success : ButtonStyle.Secondary);
+    const multiply5 = multiplierButton(id, 5, multiplier, enabled);
 
-    const multiply10 = new ButtonBuilder()
-        .setCustomId(id + '-' + '10' + '-' + multiplier)
-        .setEmoji('🔟')
-        .setDisabled(!enabled)
-        .setStyle(highlight == '10' ? ButtonStyle.Success : ButtonStyle.Secondary);
+    const multiply10 = multiplierButton(id, 10, multiplier, enabled);
 
     switch (coreType) {
         case CoreType.GB:
