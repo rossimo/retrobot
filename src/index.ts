@@ -126,7 +126,7 @@ const main = async () => {
                     attachment: recording,
                     name: recordingName
                 }],
-                components: buttons(coreType, id, 1, true),
+                components: buttons(coreType, id, 1, true, info.multipliers),
             });
         } catch (err) {
             console.error(err);
@@ -230,7 +230,7 @@ const main = async () => {
                         const info = getGameInfo(id);
                         const num = parseInt(button);
                         if (info.multipliers.includes(num)) {
-                            info.multipliers.splice(info.multipliers.indexOf(num));
+                            info.multipliers.splice(info.multipliers.indexOf(num), 1);
                         } else {
                             info.multipliers.push(num);
                             info.multipliers.sort((a,b) => a-b);
@@ -246,9 +246,9 @@ const main = async () => {
                     (async () => {
                         try {
                             if (isNumeric(button)) {
-                                await message.edit({ components: buttons(info.coreType, id, parseInt(button), true) });
+                                await message.edit({ components: buttons(info.coreType, id, parseInt(button), true, info.multipliers) });
                             } else {
-                                await message.edit({ components: buttons(info.coreType, id, parseInt(multiplier), false, button) });
+                                await message.edit({ components: buttons(info.coreType, id, parseInt(multiplier), false, info.multipliers, button) });
                             }
 
                             await interaction.update({});
@@ -280,7 +280,7 @@ const main = async () => {
                                 attachment: recording,
                                 name: recordingName
                             }],
-                            components: buttons(info.coreType, id, 1, true)
+                            components: buttons(info.coreType, id, 1, true, info.multipliers)
                         });
                     }
                 } else {
@@ -334,7 +334,7 @@ const multiplierButton = (id: string, multiplier: number, messageMultiplier: num
         .setStyle(messageMultiplier == multiplier ? ButtonStyle.Primary : ButtonStyle.Secondary);
 };
 
-const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled: boolean = true, highlight?: string) => {
+const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled: boolean = true, enabledMultipliers: Array<number>, highlight?: string) => {
     const a = new ButtonBuilder()
         .setCustomId(id + '-' + 'a' + '-' + multiplier)
         .setEmoji('🇦')
@@ -407,11 +407,20 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
         .setDisabled(!enabled)
         .setStyle(highlight == 'start' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
-    const multiply3 = multiplierButton(id, 3, multiplier, enabled);
 
-    const multiply5 = multiplierButton(id, 5, multiplier, enabled);
-
-    const multiply10 = multiplierButton(id, 10, multiplier, enabled);
+    const multiplierRows = [
+        new ActionRowBuilder()
+        .addComponents(
+            enabledMultipliers.splice(0,5).map((n) => multiplierButton(id, n, multiplier, enabled))
+        )
+    ];
+    if (enabledMultipliers.length > 0) {
+        multiplierRows.push(new ActionRowBuilder()
+            .addComponents(
+                enabledMultipliers.map((n) => multiplierButton(id, n, multiplier, enabled))
+            )
+        )
+    }
 
     switch (coreType) {
         case CoreType.GB:
@@ -424,10 +433,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     .addComponents(
                         up, down, left, right
                     ),
-                new ActionRowBuilder()
-                    .addComponents(
-                        multiply3, multiply5, multiply10
-                    )
+                ...multiplierRows
             ] as any[];
 
         case CoreType.GBA:
@@ -444,10 +450,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     .addComponents(
                         select, start, l, r
                     ),
-                new ActionRowBuilder()
-                    .addComponents(
-                        multiply3, multiply5, multiply10
-                    )
+                ...multiplierRows
             ] as any[];
 
         case CoreType.NES:
@@ -460,10 +463,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     .addComponents(
                         up, down, left, right
                     ),
-                new ActionRowBuilder()
-                    .addComponents(
-                        multiply3, multiply5, multiply10
-                    )
+                ...multiplierRows
             ] as any[];
 
         case CoreType.SNES:
@@ -480,10 +480,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     .addComponents(
                         select, start, l, r
                     ),
-                new ActionRowBuilder()
-                    .addComponents(
-                        multiply3, multiply5, multiply10
-                    )
+                ...multiplierRows
             ] as any[];
     }
 
@@ -629,7 +626,7 @@ const unlockGames = async (client: Client) => {
 
                 if (info) {
                     console.log(`unlocking ${info.game} in ${channel.name}`);
-                    await message.edit({ components: buttons(info.coreType, id, 1, true) });
+                    await message.edit({ components: buttons(info.coreType, id, 1, true, info.multipliers) });
                 }
             }
         } catch (err) {
