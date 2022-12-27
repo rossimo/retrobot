@@ -407,17 +407,23 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
         .setDisabled(!enabled)
         .setStyle(highlight == 'start' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
+    const multiplierRows = [];
 
-    const multiplierRows = [
-        new ActionRowBuilder()
-        .addComponents(
-            enabledMultipliers.splice(0,5).map((n) => multiplierButton(id, n, multiplier, enabled))
-        )
-    ];
+    enabledMultipliers = [...enabledMultipliers];
+
+    if (enabledMultipliers.length > 0) {
+        multiplierRows.push(
+            new ActionRowBuilder()
+                .addComponents(
+                    enabledMultipliers.splice(0, 5).map((n) => multiplierButton(id, n, multiplier, enabled))
+                )
+        );
+    }
+
     if (enabledMultipliers.length > 0) {
         multiplierRows.push(new ActionRowBuilder()
             .addComponents(
-                enabledMultipliers.map((n) => multiplierButton(id, n, multiplier, enabled))
+               enabledMultipliers.map((n) => multiplierButton(id, n, multiplier, enabled))
             )
         )
     }
