@@ -110,7 +110,8 @@ const main = async () => {
                 channelId: message.channelId,
                 inputAssist: InputAssist.Autoplay,
                 inputAssistSpeed: InputAssistSpeed.Normal,
-                directionPress: DirectionPress.Release
+                directionPress: DirectionPress.Release,
+                multipliers: [3, 5, 10],
             };
 
             setGameInfo(id, info);
@@ -125,7 +126,7 @@ const main = async () => {
                     attachment: recording,
                     name: recordingName
                 }],
-                components: buttons(coreType, id, 1, true),
+                components: buttons(coreType, id, 1, true, info.multipliers),
             });
         } catch (err) {
             console.error(err);
@@ -223,16 +224,31 @@ const main = async () => {
                 const message = interaction.message;
 
                 const [id, button, multiplier] = interaction.customId.split('-');
-
+                if (id == 'settings') {
+                    const [_, id, setting, button] = interaction.customId.split('-');
+                    if (setting == 'multiplier') {
+                        const info = getGameInfo(id);
+                        const num = parseInt(button);
+                        if (info.multipliers.includes(num)) {
+                            info.multipliers.splice(info.multipliers.indexOf(num), 1);
+                        } else {
+                            info.multipliers.push(num);
+                            info.multipliers.sort((a,b) => a-b);
+                        }
+                        setGameInfo(id, info);
+                        interaction.update(multiplierSetting(id, info));
+                    }
+                    return;
+                }
                 if (isGameId(id)) {
                     const info = getGameInfo(id);
 
                     (async () => {
                         try {
                             if (isNumeric(button)) {
-                                await message.edit({ components: buttons(info.coreType, id, parseInt(button), true) });
+                                await message.edit({ components: buttons(info.coreType, id, parseInt(button), true, info.multipliers) });
                             } else {
-                                await message.edit({ components: buttons(info.coreType, id, parseInt(multiplier), false, button) });
+                                await message.edit({ components: buttons(info.coreType, id, parseInt(multiplier), false, info.multipliers, button) });
                             }
 
                             await interaction.update({});
@@ -264,7 +280,7 @@ const main = async () => {
                                 attachment: recording,
                                 name: recordingName
                             }],
-                            components: buttons(info.coreType, id, 1, true)
+                            components: buttons(info.coreType, id, 1, true, info.multipliers)
                         });
                     }
                 } else {
@@ -310,7 +326,15 @@ const isNumeric = (value) => {
     return /^\d+$/.test(value);
 };
 
-const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled: boolean = true, highlight?: string) => {
+const multiplierButton = (id: string, multiplier: number, messageMultiplier: number, enabled: boolean) => {
+    return new ButtonBuilder()
+        .setCustomId(id + '-' + multiplier.toString() + '-' + messageMultiplier)
+        .setEmoji(multiplier == 10 ? "🔟" : multiplier.toString() + '\u20E3')  // Combining Enclosing Keycap, turns a digit into an emoji
+        .setDisabled(!enabled)
+        .setStyle(messageMultiplier == multiplier ? ButtonStyle.Primary : ButtonStyle.Secondary);
+};
+
+const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled: boolean = true, enabledMultipliers: Array<number>, highlight?: string) => {
     const a = new ButtonBuilder()
         .setCustomId(id + '-' + 'a' + '-' + multiplier)
         .setEmoji('🇦')
@@ -383,23 +407,20 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
         .setDisabled(!enabled)
         .setStyle(highlight == 'start' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
-    const multiply3 = new ButtonBuilder()
-        .setCustomId(id + '-' + '3' + '-' + multiplier)
-        .setEmoji('3️⃣')
-        .setDisabled(!enabled)
-        .setStyle(highlight == '3' ? ButtonStyle.Success : ButtonStyle.Secondary);
 
-    const multiply5 = new ButtonBuilder()
-        .setCustomId(id + '-' + '5' + '-' + multiplier)
-        .setEmoji('5️⃣')
-        .setDisabled(!enabled)
-        .setStyle(highlight == '5' ? ButtonStyle.Success : ButtonStyle.Secondary);
-
-    const multiply10 = new ButtonBuilder()
-        .setCustomId(id + '-' + '10' + '-' + multiplier)
-        .setEmoji('🔟')
-        .setDisabled(!enabled)
-        .setStyle(highlight == '10' ? ButtonStyle.Success : ButtonStyle.Secondary);
+    const multiplierRows = [
+        new ActionRowBuilder()
+        .addComponents(
+            enabledMultipliers.splice(0,5).map((n) => multiplierButton(id, n, multiplier, enabled))
+        )
+    ];
+    if (enabledMultipliers.length > 0) {
+        multiplierRows.push(new ActionRowBuilder()
+            .addComponents(
+                enabledMultipliers.map((n) => multiplierButton(id, n, multiplier, enabled))
+            )
+        )
+    }
 
     switch (coreType) {
         case CoreType.GB:
@@ -412,10 +433,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     .addComponents(
                         up, down, left, right
                     ),
-                new ActionRowBuilder()
-                    .addComponents(
-                        multiply3, multiply5, multiply10
-                    )
+                ...multiplierRows
             ] as any[];
 
         case CoreType.GBA:
@@ -432,10 +450,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     .addComponents(
                         select, start, l, r
                     ),
-                new ActionRowBuilder()
-                    .addComponents(
-                        multiply3, multiply5, multiply10
-                    )
+                ...multiplierRows
             ] as any[];
 
         case CoreType.NES:
@@ -448,10 +463,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     .addComponents(
                         up, down, left, right
                     ),
-                new ActionRowBuilder()
-                    .addComponents(
-                        multiply3, multiply5, multiply10
-                    )
+                ...multiplierRows
             ] as any[];
 
         case CoreType.SNES:
@@ -468,10 +480,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
                     .addComponents(
                         select, start, l, r
                     ),
-                new ActionRowBuilder()
-                    .addComponents(
-                        multiply3, multiply5, multiply10
-                    )
+                ...multiplierRows
             ] as any[];
     }
 
@@ -534,10 +543,32 @@ const directionPressSetting = (id, info: GameInfo) => ({
             }))]
 })
 
+const multiplierSetting = (id, info: GameInfo) => ({
+    content: 'Enabled Multipliers',
+    components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
+        .addComponents(
+            multiplierButton(`settings-${id}-multiplier`, 1, 0, true).setStyle(info.multipliers.includes(1) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            multiplierButton(`settings-${id}-multiplier`, 2, 0, true).setStyle(info.multipliers.includes(2) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            multiplierButton(`settings-${id}-multiplier`, 3, 0, true).setStyle(info.multipliers.includes(3) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            multiplierButton(`settings-${id}-multiplier`, 4, 0, true).setStyle(info.multipliers.includes(4) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            multiplierButton(`settings-${id}-multiplier`, 5, 0, true).setStyle(info.multipliers.includes(5) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            ),
+        new ActionRowBuilder<MessageActionRowComponentBuilder>()
+            .addComponents(
+                multiplierButton(`settings-${id}-multiplier`, 6, 0, true).setStyle(info.multipliers.includes(6) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                multiplierButton(`settings-${id}-multiplier`, 7, 0, true).setStyle(info.multipliers.includes(7) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                multiplierButton(`settings-${id}-multiplier`, 8, 0, true).setStyle(info.multipliers.includes(8) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                multiplierButton(`settings-${id}-multiplier`, 9, 0, true).setStyle(info.multipliers.includes(9) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                multiplierButton(`settings-${id}-multiplier`, 10, 0, true).setStyle(info.multipliers.includes(10) ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                )
+        ]
+})
+
 const settingsForm = (id: string, info: GameInfo): MessageOptions[] => ([
     inputAssistSetting(id, info),
     inputAssistSpeedSetting(id, info),
-    directionPressSetting(id, info)
+    directionPressSetting(id, info),
+    multiplierSetting(id, info)
 ]);
 
 const joyToWord = (input: InputState) => {
@@ -595,7 +626,7 @@ const unlockGames = async (client: Client) => {
 
                 if (info) {
                     console.log(`unlocking ${info.game} in ${channel.name}`);
-                    await message.edit({ components: buttons(info.coreType, id, 1, true) });
+                    await message.edit({ components: buttons(info.coreType, id, 1, true, info.multipliers) });
                 }
             }
         } catch (err) {

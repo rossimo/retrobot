@@ -26,6 +26,7 @@ export interface GameInfo {
     inputAssist: InputAssist
     inputAssistSpeed: InputAssistSpeed
     directionPress: DirectionPress
+    multipliers: Array<number>
 }
 
 export const isGameId = (id: string) => {
@@ -34,7 +35,10 @@ export const isGameId = (id: string) => {
 
 export const getGameInfo = (id: string): GameInfo => {
     const info = JSON.parse(fs.readFileSync(`data/${id}/info.json`).toString());
-
+    if (info['multipliers'] == undefined)
+    {
+        info['multipliers'] = [3, 5, 10];
+    }
     return {
         inputAssist: InputAssist.Autoplay,
         inputAssistSpeed: InputAssistSpeed.Normal,
