@@ -28,7 +28,7 @@
     "decompress-bzip2": "^4.0.0",
     "decompress-tarbz2": "^4.1.1",
     "decompress-targz": "^4.1.1",
-    "discord.js": "^14.3.0",
+    "discord.js": "^14.9.0",
     "dotenv": "^16.0.1",
     "fast-glob": "^3.2.11",
     "fluent-ffmpeg": "https://github.com/rossimo/node-fluent-ffmpeg",
