@@ -13,9 +13,9 @@ import decompressTargz from 'decompress-targz';
 import decompressTarbz2 from 'decompress-tarbz2';
 import { toLower, endsWith, range, uniq, split, first, reduce } from 'lodash';
 import {
-    ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, SelectMenuBuilder,
+    ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, Client, StringSelectMenuBuilder,
     ComponentType, MessageActionRowComponentBuilder, GatewayIntentBits, Interaction, Message,
-    PermissionsBitField, TextChannel, MessageOptions, SlashCommandBuilder
+    PermissionsBitField, TextChannel, BaseMessageOptions, SlashCommandBuilder
 } from 'discord.js';
 
 import { InputState } from './util';
@@ -156,7 +156,7 @@ const main = async () => {
                 }
             }
 
-            if (interaction.isSelectMenu() && isAdmin) {
+            if (interaction.isStringSelectMenu() && isAdmin) {
                 const [name, id, setting] = interaction.customId.split('-');
 
                 if (name == 'settings' && isGameId(id)) {
@@ -496,7 +496,7 @@ const buttons = (coreType: CoreType, id: string, multiplier: number = 1, enabled
 const inputAssistSetting = (id, info: GameInfo) => ({
     content: 'Input Assist',
     components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
-        .addComponents(new SelectMenuBuilder()
+        .addComponents(new StringSelectMenuBuilder()
             .setCustomId(`settings-${id}-input_assist`)
             .setOptions({
                 label: 'Autoplay',
@@ -516,7 +516,7 @@ const inputAssistSetting = (id, info: GameInfo) => ({
 const inputAssistSpeedSetting = (id, info: GameInfo) => ({
     content: 'Input Assist Speed',
     components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
-        .addComponents(new SelectMenuBuilder()
+        .addComponents(new StringSelectMenuBuilder()
             .setCustomId(`settings-${id}-input_assist_speed`)
             .setOptions({
                 label: 'Fast',
@@ -536,7 +536,7 @@ const inputAssistSpeedSetting = (id, info: GameInfo) => ({
 const directionPressSetting = (id, info: GameInfo) => ({
     content: 'Directional Press',
     components: [new ActionRowBuilder<MessageActionRowComponentBuilder>()
-        .addComponents(new SelectMenuBuilder()
+        .addComponents(new StringSelectMenuBuilder()
             .setCustomId(`settings-${id}-direction_press`)
             .setOptions({
                 label: 'Release',
@@ -570,7 +570,7 @@ const multiplierSetting = (id, info: GameInfo) => ({
         ]
 })
 
-const settingsForm = (id: string, info: GameInfo): MessageOptions[] => ([
+const settingsForm = (id: string, info: GameInfo): BaseMessageOptions[] => ([
     inputAssistSetting(id, info),
     inputAssistSpeedSetting(id, info),
     directionPressSetting(id, info),
